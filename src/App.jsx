@@ -1,46 +1,56 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from './firebase';
-
-import Sidebar from './components/Sidebar';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import UserManager from './pages/UserManager';
-import MarketplaceAdmin from './pages/MarketplaceAdmin';
-import SupportDesk from './pages/SupportDesk';
+import DataGrid from './pages/DataGrid';
+import { LayoutDashboard, Users, Database, Lock } from 'lucide-react';
+
+const Sidebar = () => (
+    <div className="w-16 lg:w-64 bg-admin-dark border-r border-gray-800 flex flex-col h-screen">
+        <div className="p-4 h-16 flex items-center justify-center lg:justify-start gap-3 border-b border-gray-800 text-admin-accent font-black tracking-tighter text-xl">
+            <Lock size={24} /> <span className="hidden lg:block">SeshNx<span className="text-white font-thin">Admin</span></span>
+        </div>
+        <nav className="flex-1 py-4 space-y-1">
+            <NavItem icon={<LayoutDashboard size={20}/>} label="Overview" active />
+            <NavItem icon={<Users size={20}/>} label="User Database" />
+            <NavItem icon={<Database size={20}/>} label="Firestore Raw" />
+        </nav>
+        <div className="p-4 border-t border-gray-800">
+            <UserInfo />
+        </div>
+    </div>
+);
+
+const NavItem = ({ icon, label, active }) => (
+    <div className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${active ? 'bg-admin-accent/10 text-admin-accent border-r-2 border-admin-accent' : 'text-gray-500 hover:bg-gray-900 hover:text-gray-300'}`}>
+        {icon} <span className="hidden lg:block text-sm font-medium">{label}</span>
+    </div>
+);
+
+const UserInfo = () => {
+    const { logout, currentUser } = useAuth();
+    return (
+        <button onClick={logout} className="text-xs text-red-500 hover:text-red-400 font-bold w-full text-left">
+            LOGOUT: {currentUser?.email?.split('@')[0]}
+        </button>
+    );
+};
+
+const ProtectedRoute = ({ children }) => {
+    const { currentUser, isAdmin } = useAuth();
+    if (!currentUser || !isAdmin) return <Navigate to="/login" />;
+    return <div className="flex h-screen bg-admin-dark text-white"><Sidebar /><main className="flex-1 p-4 overflow-hidden">{children}</main></div>;
+};
 
 export default function App() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    return onAuthStateChanged(auth, (u) => {
-      // In a real app, you would check u.email against a list of approved admins
-      // or check a custom claim here.
-      setUser(u);
-      setLoading(false);
-    });
-  }, []);
-
-  if (loading) return <div className="h-screen flex items-center justify-center bg-gray-900 text-white">Loading Admin...</div>;
-
-  if (!user) return <Login />;
-
   return (
-    <BrowserRouter>
-      <div className="flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans">
-        <Sidebar />
-        <main className="flex-1 overflow-y-auto p-8">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/users" element={<UserManager />} />
-            <Route path="/market" element={<MarketplaceAdmin />} />
-            <Route path="/support" element={<SupportDesk />} />
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
-        </main>
-      </div>
-    </BrowserRouter>
+    <AuthProvider>
+        <BrowserRouter>
+            <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/" element={<ProtectedRoute><DataGrid /></ProtectedRoute>} />
+            </Routes>
+        </BrowserRouter>
+    </AuthProvider>
   );
 }
