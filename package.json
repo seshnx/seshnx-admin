@@ -1,7 +1,7 @@
 {
-  "name": "seshnx-admin",
-  "private": true,
+  "name": "seshnx-admin-secure",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,12 +14,10 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.3",
-    "recharts": "^2.12.3",
-    "date-fns": "^3.6.0"
+    "date-fns": "^3.6.0",
+    "qrcode": "^1.5.3" 
   },
   "devDependencies": {
-    "@types/react": "^18.2.66",
-    "@types/react-dom": "^18.2.22",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.38",
