@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import DataGrid from './pages/DataGrid';
 import { LayoutDashboard, Users, Database, Lock } from 'lucide-react';
+import EnrollMfa from './pages/EnrollMfa';
 
 const Sidebar = () => (
     <div className="w-16 lg:w-64 bg-admin-dark border-r border-gray-800 flex flex-col h-screen">
@@ -48,6 +49,8 @@ export default function App() {
         <BrowserRouter>
             <Routes>
                 <Route path="/login" element={<Login />} />
+                {/* Add Enrollment Route - Keep it protected so only logged-in admins can set it up */}
+                <Route path="/enroll-mfa" element={<ProtectedRoute><EnrollMfa /></ProtectedRoute>} />
                 <Route path="/" element={<ProtectedRoute><DataGrid /></ProtectedRoute>} />
             </Routes>
         </BrowserRouter>
