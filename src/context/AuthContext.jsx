@@ -80,10 +80,15 @@ export function AuthProvider({ children }) {
             }
           }
         } catch (error) {
-          console.warn('Auth project check failed (this is ok if admins collection not set up yet):', error);
+          // Expected if Firestore rules block access or collection doesn't exist
+          // Only log non-permission errors
+          if (!error.code || (!error.code.includes('permission') && !error.code.includes('not-found'))) {
+            console.warn('Auth project check failed:', error);
+          }
         }
         
         // Check 3: Main Database Profile (seshnx-db) - fallback
+        // Note: This may fail with permission errors if user is only in auth project, which is expected
         if (!hasAccess) {
           try {
             const profileRef = doc(db, `artifacts/${APP_ID}/users/${user.uid}/profiles/main`);
@@ -102,7 +107,12 @@ export function AuthProvider({ children }) {
               }
             }
           } catch (error) {
-            console.error("Main database profile check error:", error);
+            // Expected error - user may only exist in auth project, not main database
+            // Only log if it's not a permission error (which is expected)
+            if (!error.code || !error.code.includes('permission')) {
+              console.warn("Main database profile check error:", error);
+            }
+            // Silently continue - permission denied is expected for auth-project-only users
           }
         }
         
