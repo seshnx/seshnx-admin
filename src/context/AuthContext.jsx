@@ -11,7 +11,7 @@ import {
   PhoneMultiFactorGenerator
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db, APP_ID } from '../firebase';
+import { auth, db, APP_ID, getAuthDb } from '../firebase';
 
 const AuthContext = createContext();
 
@@ -28,55 +28,92 @@ export function AuthProvider({ children }) {
   // Master Account Configuration - App Master Account
   const MASTER_ACCOUNT_EMAIL = import.meta.env.VITE_MASTER_ACCOUNT_EMAIL || '';
   const MASTER_ACCOUNT_UID = import.meta.env.VITE_MASTER_ACCOUNT_UID || '';
+  const BACKUP_ADMIN_UIDS = (import.meta.env.VITE_BACKUP_ADMIN_UIDS || '').split(',').map(u => u.trim()).filter(Boolean);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // SECURITY: Check if user is Master Account or has admin role
-        // Path: artifacts/{appId}/users/{userId}/profiles/main
+        let hasAccess = false;
+        let isSuperAdmin = false;
+        let userProfile = null;
         
-        // First check: Is this the App Master Account?
+        // Check 1: Environment-based Master Account (highest priority - immutable)
         const isMasterAccount = 
           (MASTER_ACCOUNT_EMAIL && user.email === MASTER_ACCOUNT_EMAIL) ||
           (MASTER_ACCOUNT_UID && user.uid === MASTER_ACCOUNT_UID);
         
-        if (isMasterAccount) {
-          // Master Account always has access
+        const isBackupAdmin = BACKUP_ADMIN_UIDS.includes(user.uid);
+        
+        if (isMasterAccount || isBackupAdmin) {
+          // Master/Backup accounts always have access (cannot be blocked)
+          hasAccess = true;
+          isSuperAdmin = true;
+          userProfile = { 
+            accountTypes: ['SuperAdmin'], 
+            isMasterAccount: isMasterAccount,
+            isBackupAdmin: isBackupAdmin 
+          };
           setCurrentUser(user);
           setIsAdmin(true);
           setIsSuperAdmin(true);
-          setUserProfile({ accountTypes: ['SuperAdmin'], isMasterAccount: true });
+          setUserProfile(userProfile);
           setLoading(false);
           return;
         }
-
+        
+        // Check 2: Auth Project Admin Collection (seshnx-admin-auth)
+        // This is isolated from the main database - cannot be compromised via main DB
         try {
-          const profileRef = doc(db, `artifacts/${APP_ID}/users/${user.uid}/profiles/main`);
-          const profileSnap = await getDoc(profileRef);
-
-          if (profileSnap.exists()) {
-            const userData = profileSnap.data();
-            const accountTypes = userData?.accountTypes || [];
-            const isSuperAdminRole = accountTypes.includes('SuperAdmin');
-            const isGlobalAdmin = accountTypes.includes('GAdmin');
-            
-            if (isSuperAdminRole || isGlobalAdmin) {
-              setCurrentUser(user);
-              setIsAdmin(true);
-              setIsSuperAdmin(isSuperAdminRole);
-              setUserProfile(userData);
-            } else {
-              await signOut(auth);
-              alert("Access Denied: Not a Global Administrator");
+          const authDb = getAuthDb();
+          const adminRef = doc(authDb, `admins/${user.uid}`);
+          const adminSnap = await getDoc(adminRef);
+          
+          if (adminSnap.exists()) {
+            const adminData = adminSnap.data();
+            if (adminData.active !== false) {
+              hasAccess = true;
+              isSuperAdmin = adminData.role === 'SuperAdmin';
+              userProfile = { 
+                accountTypes: [adminData.role || 'GAdmin'],
+                source: 'auth-project'
+              };
             }
-          } else {
-            await signOut(auth);
-            alert("Access Denied: User profile not found");
           }
         } catch (error) {
-          console.error("Auth check error:", error);
+          console.warn('Auth project check failed (this is ok if admins collection not set up yet):', error);
+        }
+        
+        // Check 3: Main Database Profile (seshnx-db) - fallback
+        if (!hasAccess) {
+          try {
+            const profileRef = doc(db, `artifacts/${APP_ID}/users/${user.uid}/profiles/main`);
+            const profileSnap = await getDoc(profileRef);
+            
+            if (profileSnap.exists()) {
+              const userData = profileSnap.data();
+              const accountTypes = userData?.accountTypes || [];
+              const isSuperAdminRole = accountTypes.includes('SuperAdmin');
+              const isGlobalAdmin = accountTypes.includes('GAdmin');
+              
+              if (isSuperAdminRole || isGlobalAdmin) {
+                hasAccess = true;
+                isSuperAdmin = isSuperAdminRole;
+                userProfile = { ...userData, source: 'main-database' };
+              }
+            }
+          } catch (error) {
+            console.error("Main database profile check error:", error);
+          }
+        }
+        
+        if (hasAccess) {
+          setCurrentUser(user);
+          setIsAdmin(true);
+          setIsSuperAdmin(isSuperAdmin);
+          setUserProfile(userProfile);
+        } else {
           await signOut(auth);
-          alert("Access Denied: Error checking permissions");
+          alert("Access Denied: Not an Administrator");
         }
       } else {
         setCurrentUser(null);
