@@ -11,7 +11,7 @@ import {
   PhoneMultiFactorGenerator
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { auth, db, APP_ID } from '../firebase';
 
 const AuthContext = createContext();
 
@@ -20,27 +20,69 @@ export function useAuth() { return useContext(AuthContext); }
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mfaNeeded, setMfaNeeded] = useState(null); // Stores resolver if MFA challenge fails
+
+  // Master Account Configuration - App Master Account
+  const MASTER_ACCOUNT_EMAIL = import.meta.env.VITE_MASTER_ACCOUNT_EMAIL || '';
+  const MASTER_ACCOUNT_UID = import.meta.env.VITE_MASTER_ACCOUNT_UID || '';
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // SECURITY: Check if user exists in 'admins' collection
-        // This prevents regular app users from accessing admin panel even with valid creds
-        const adminRef = doc(db, 'admins', user.uid);
-        const adminSnap = await getDoc(adminRef);
-
-        if (adminSnap.exists()) {
+        // SECURITY: Check if user is Master Account or has admin role
+        // Path: artifacts/{appId}/users/{userId}/profiles/main
+        
+        // First check: Is this the App Master Account?
+        const isMasterAccount = 
+          (MASTER_ACCOUNT_EMAIL && user.email === MASTER_ACCOUNT_EMAIL) ||
+          (MASTER_ACCOUNT_UID && user.uid === MASTER_ACCOUNT_UID);
+        
+        if (isMasterAccount) {
+          // Master Account always has access
           setCurrentUser(user);
           setIsAdmin(true);
-        } else {
+          setIsSuperAdmin(true);
+          setUserProfile({ accountTypes: ['SuperAdmin'], isMasterAccount: true });
+          setLoading(false);
+          return;
+        }
+
+        try {
+          const profileRef = doc(db, `artifacts/${APP_ID}/users/${user.uid}/profiles/main`);
+          const profileSnap = await getDoc(profileRef);
+
+          if (profileSnap.exists()) {
+            const userData = profileSnap.data();
+            const accountTypes = userData?.accountTypes || [];
+            const isSuperAdminRole = accountTypes.includes('SuperAdmin');
+            const isGlobalAdmin = accountTypes.includes('GAdmin');
+            
+            if (isSuperAdminRole || isGlobalAdmin) {
+              setCurrentUser(user);
+              setIsAdmin(true);
+              setIsSuperAdmin(isSuperAdminRole);
+              setUserProfile(userData);
+            } else {
+              await signOut(auth);
+              alert("Access Denied: Not a Global Administrator");
+            }
+          } else {
+            await signOut(auth);
+            alert("Access Denied: User profile not found");
+          }
+        } catch (error) {
+          console.error("Auth check error:", error);
           await signOut(auth);
-          alert("Access Denied: Not an Administrator");
+          alert("Access Denied: Error checking permissions");
         }
       } else {
         setCurrentUser(null);
         setIsAdmin(false);
+        setIsSuperAdmin(false);
+        setUserProfile(null);
       }
       setLoading(false);
     });
@@ -99,6 +141,8 @@ export function AuthProvider({ children }) {
   const value = {
     currentUser,
     isAdmin,
+    isSuperAdmin,
+    userProfile,
     login,
     logout,
     mfaNeeded,
