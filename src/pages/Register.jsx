@@ -44,7 +44,6 @@ export default function Register() {
       const user = userCredential.user;
 
       // 3. Create Admin Record in Auth Project Firestore
-      const { getAuthDb } = await import('../firebase');
       const authDb = getAuthDb();
       
       await setDoc(doc(authDb, 'admins', user.uid), {
