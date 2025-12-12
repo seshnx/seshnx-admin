@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Shield, Lock, Key } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function Login() {
   const { login, mfaNeeded, verifyMfaLogin } = useAuth();
@@ -60,7 +61,10 @@ export default function Login() {
           <input className="w-full bg-black border border-gray-700 rounded p-3 text-white focus:border-admin-accent outline-none" type="password" placeholder="Password" value={pass} onChange={e=>setPass(e.target.value)} />
           <button className="w-full bg-white text-black py-3 rounded font-bold hover:bg-gray-200 transition">Proceed</button>
         </form>
-        <div className="mt-6 text-center">
+        <div className="mt-6 text-center space-y-2">
+            <Link to="/register" className="text-xs text-admin-accent hover:text-blue-400 transition underline">
+                Make an account (Testing)
+            </Link>
             <p className="text-xxs text-gray-600">
                 Access is restricted to authorized personnel.<br/>
                 All actions are logged and monitored.

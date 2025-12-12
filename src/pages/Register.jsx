@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, APP_ID } from '../firebase';
+import { auth, db, APP_ID, getAuthDb } from '../firebase';
 import { Shield, UserPlus, ArrowRight, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -17,43 +17,57 @@ export default function Register() {
     setError('');
 
     try {
-      // 1. Verify Invite Code
-      // We assume codes are stored in an 'invites' collection where ID = code
-      const inviteRef = doc(db, 'invites', formData.inviteCode);
-      const inviteSnap = await getDoc(inviteRef);
+      // TEMP: For testing - allow registration without invite code
+      const useInviteCode = formData.inviteCode.trim().length > 0;
+      let role = 'GAdmin'; // Default role for temp accounts
+      let inviteData = null;
 
-      if (!inviteSnap.exists()) {
-        throw new Error("Invalid or expired invite code.");
+      if (useInviteCode) {
+        // 1. Verify Invite Code (if provided)
+        const inviteRef = doc(db, 'invites', formData.inviteCode);
+        const inviteSnap = await getDoc(inviteRef);
+
+        if (!inviteSnap.exists()) {
+          throw new Error("Invalid or expired invite code.");
+        }
+
+        inviteData = inviteSnap.data();
+        if (inviteData.used) {
+          throw new Error("This invite code has already been used.");
+        }
+
+        role = inviteData.role || 'GAdmin';
       }
 
-      const inviteData = inviteSnap.data();
-      if (inviteData.used) {
-        throw new Error("This invite code has already been used.");
-      }
-
-      // 2. Create Authentication User
+      // 2. Create Authentication User (in auth project)
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
 
-      // 3. Create Admin Record (Grants Access)
-      // We copy the role/permissions defined in the invite to the admin doc
-      await setDoc(doc(db, 'admins', user.uid), {
+      // 3. Create Admin Record in Auth Project Firestore
+      const { getAuthDb } = await import('../firebase');
+      const authDb = getAuthDb();
+      
+      await setDoc(doc(authDb, 'admins', user.uid), {
         email: user.email,
-        role: inviteData.role || 'admin', // 'super_admin' or 'admin'
+        role: role,
+        active: true,
         createdAt: serverTimestamp(),
-        createdBy: inviteData.createdBy,
+        createdBy: inviteData?.createdBy || 'self-registration',
         status: 'active'
       });
 
-      // 4. Invalidate Invite Code
-      await updateDoc(inviteRef, {
-        used: true,
-        usedBy: user.uid,
-        usedAt: serverTimestamp()
-      });
+      // 4. If invite code was used, invalidate it
+      if (useInviteCode && inviteData) {
+        const inviteRef = doc(db, 'invites', formData.inviteCode);
+        await updateDoc(inviteRef, {
+          used: true,
+          usedBy: user.uid,
+          usedAt: serverTimestamp()
+        });
+      }
 
-      // 5. Redirect to MFA Setup
-      navigate('/enroll-mfa');
+      // 5. Redirect to login (account created, can now login)
+      navigate('/login');
 
     } catch (err) {
       console.error(err);
@@ -69,22 +83,21 @@ export default function Register() {
         <div className="flex justify-center mb-6 text-admin-accent">
             <UserPlus size={64} strokeWidth={1.5} />
         </div>
-        <h2 className="text-2xl font-bold text-center mb-2">Admin Access</h2>
+        <h2 className="text-2xl font-bold text-center mb-2">Create Admin Account</h2>
         <p className="text-center text-gray-400 text-sm mb-6">
-          Registration is restricted. Enter your invite code.
+          {formData.inviteCode ? 'Using invite code' : 'Create account for testing (invite code optional)'}
         </p>
 
         {error && <div className="bg-red-900/30 text-red-400 p-3 rounded mb-4 text-center text-xs">{error}</div>}
 
         <form onSubmit={handleRegister} className="space-y-4">
           <div>
-            <label className="text-xs font-bold text-gray-500 uppercase ml-1">Invite Code</label>
+            <label className="text-xs font-bold text-gray-500 uppercase ml-1">Invite Code (Optional)</label>
             <input 
                 className="w-full bg-black border border-gray-700 rounded p-3 text-white font-mono tracking-wider focus:border-admin-accent outline-none uppercase"
-                placeholder="XXXX-XXXX"
+                placeholder="XXXX-XXXX (leave blank for testing)"
                 value={formData.inviteCode}
                 onChange={e => setFormData({...formData, inviteCode: e.target.value.toUpperCase()})}
-                required
             />
           </div>
           
