@@ -110,23 +110,58 @@ export async function verifyAdmin(token) {
     
     // Check if user is admin in auth project
     if (authDbInstance) {
-      const adminDoc = await authDbInstance
-        .collection('admins')
-        .doc(decodedToken.uid)
-        .get();
-      
-      if (adminDoc.exists) {
-        const adminData = adminDoc.data();
-        if (adminData.active !== false) {
-          return {
-            uid: decodedToken.uid,
-            email: decodedToken.email,
-            role: adminData.role || 'GAdmin',
-            isSuperAdmin: adminData.role === 'SuperAdmin',
-            ...adminData
-          };
+      try {
+        const adminDoc = await authDbInstance
+          .collection('admins')
+          .doc(decodedToken.uid)
+          .get();
+        
+        if (adminDoc.exists) {
+          const adminData = adminDoc.data();
+          if (adminData.active !== false) {
+            return {
+              uid: decodedToken.uid,
+              email: decodedToken.email,
+              role: adminData.role || 'GAdmin',
+              isSuperAdmin: adminData.role === 'SuperAdmin',
+              ...adminData
+            };
+          }
+        }
+      } catch (error) {
+        // Collection might not exist yet - that's ok, will check fallbacks below
+        console.warn('Admins collection check failed (collection may not exist yet):', error.message);
+      }
+    }
+
+    // Fallback: Check main database profile (for backwards compatibility)
+    try {
+      const dbDbInstance = initialized.dbDb;
+      if (dbDbInstance) {
+        // Try to get project ID from environment or default
+        const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'seshnx-db';
+        const profilePath = `artifacts/${projectId}/users/${decodedToken.uid}/profiles/main`;
+        const profileDoc = await dbDbInstance.doc(profilePath).get();
+        
+        if (profileDoc.exists) {
+          const profileData = profileDoc.data();
+          const accountTypes = profileData?.accountTypes || [];
+          const isSuperAdminRole = accountTypes.includes('SuperAdmin');
+          const isGlobalAdmin = accountTypes.includes('GAdmin');
+          
+          if (isSuperAdminRole || isGlobalAdmin) {
+            return {
+              uid: decodedToken.uid,
+              email: decodedToken.email,
+              role: isSuperAdminRole ? 'SuperAdmin' : 'GAdmin',
+              isSuperAdmin: isSuperAdminRole
+            };
+          }
         }
       }
+    } catch (error) {
+      // Profile check failed - continue to next fallback
+      console.warn('Main database profile check failed:', error.message);
     }
 
     // Fallback: Check master account from env vars

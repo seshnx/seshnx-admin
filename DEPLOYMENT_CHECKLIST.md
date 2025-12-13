@@ -5,10 +5,27 @@
 ### Environment Variables in Vercel
 - [x] `FIREBASE_SERVICE_ACCOUNT_DB` - Database project service account JSON
 - [x] `FIREBASE_SERVICE_ACCOUNT_AUTH` - Auth project service account JSON
-- [ ] `VITE_MASTER_ACCOUNT_EMAIL` - Master account email (optional)
-- [ ] `VITE_MASTER_ACCOUNT_UID` - Master account UID (optional)
+- [ ] `VITE_MASTER_ACCOUNT_EMAIL` - Master account email (optional but recommended)
+- [ ] `VITE_MASTER_ACCOUNT_UID` - Master account UID (optional but recommended)
 - [ ] `VITE_BACKUP_ADMIN_UIDS` - Backup admin UIDs comma-separated (optional)
 - [ ] `VITE_FIREBASE_PROJECT_ID` - Should be 'seshnx-db' (optional, defaults to 'seshnx-db')
+
+### First-Time Setup: Create Admins Collection
+The `admins` collection in `seshnx-admin-auth` doesn't exist yet. It will be created automatically, but you need to create the first admin record:
+
+**Option 1: Use Register API** (after deployment)
+- POST to `/api/admin/register` with your admin credentials
+- This creates both the Firebase Auth user AND the admin record
+
+**Option 2: Use Init Admin API** (if user already exists)
+- POST to `/api/admin/init-admin` with email and role
+- User must already exist in Firebase Auth
+
+**Option 3: Set Master Account** (recommended backup)
+- Set `VITE_MASTER_ACCOUNT_EMAIL` and `VITE_MASTER_ACCOUNT_UID` in Vercel
+- This works even without the `admins` collection
+
+See `ADMIN_COLLECTION_SETUP.md` for details.
 
 ### Code Verification
 - [x] `firebase-admin` installed in package.json
