@@ -1,40 +1,34 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
-import { db, COLLECTIONS } from '../firebase';
-import { CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { CheckCircle, Clock } from 'lucide-react';
+import { reportsAPI } from '../utils/api';
 
 export default function SupportDesk() {
   const [requests, setRequests] = useState([]);
 
   useEffect(() => {
-    // Real-time listener for incoming support tickets
-    const q = query(collection(db, COLLECTIONS.REPORTS), orderBy('timestamp', 'desc'));
-    return onSnapshot(q, 
-      (snap) => {
-        setRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      },
-      (error) => {
-        // Expected: Firestore permission errors are normal - admin operations should use API routes
-        if (error.code && error.code.includes('permission')) {
-          console.warn('SupportDesk: Firestore permission denied. Use API routes for admin operations.');
-          setRequests([]); // Show empty state
-        } else {
-          console.error('SupportDesk error:', error);
-        }
-      }
-    );
+    fetchReports();
+    // Poll for updates every 30 seconds (since we can't use real-time listeners with API routes)
+    const interval = setInterval(fetchReports, 30000);
+    return () => clearInterval(interval);
   }, []);
+
+  const fetchReports = async () => {
+    try {
+      const result = await reportsAPI.fetchReports();
+      setRequests(result.reports || []);
+    } catch (error) {
+      console.error('Error fetching reports:', error);
+      setRequests([]);
+    }
+  };
 
   const resolveTicket = async (id) => {
     if(confirm("Mark this ticket as Resolved?")) {
       try {
-        await updateDoc(doc(db, COLLECTIONS.REPORTS, id), { status: 'Resolved' });
-      } catch (e) {
-        if (e.code && e.code.includes('permission')) {
-          alert('Permission denied. Admin operations should use API routes.');
-        } else {
-          alert('Error resolving ticket: ' + e.message);
-        }
+        await reportsAPI.updateReportStatus(id, 'Resolved');
+        fetchReports();
+      } catch (error) {
+        alert('Error resolving ticket: ' + error.message);
       }
     }
   };

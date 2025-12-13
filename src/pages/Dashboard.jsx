@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { collection, getCountFromServer } from 'firebase/firestore';
-import { db, COLLECTIONS } from '../firebase';
 import { Users, DollarSign, FileText, Activity, GraduationCap, TrendingUp, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { schoolsAPI } from '../utils/api';
+import { statsAPI } from '../utils/api';
 
 const StatCard = ({ title, value, icon, color, subtitle, link }) => {
   const content = (
@@ -33,32 +31,16 @@ export default function Dashboard() {
 
   const fetchStats = async () => {
     try {
-      // Fetch schools count
-      let schoolsCount = 0;
-      try {
-        const schoolsResult = await schoolsAPI.fetchSchools();
-        schoolsCount = schoolsResult.schools?.length || 0;
-      } catch (e) {
-        console.warn('Error fetching schools count:', e);
-      }
-
-      // Fetch other counts
-      const counts = await Promise.allSettled([
-        getCountFromServer(collection(db, COLLECTIONS.PROFILES)).catch(() => ({ data: () => ({ count: 0 }) })),
-        getCountFromServer(collection(db, COLLECTIONS.MARKET)).catch(() => ({ data: () => ({ count: 0 }) })),
-        getCountFromServer(collection(db, COLLECTIONS.POSTS)).catch(() => ({ data: () => ({ count: 0 }) })),
-        getCountFromServer(collection(db, COLLECTIONS.BOOKINGS)).catch(() => ({ data: () => ({ count: 0 }) }))
-      ]);
-
+      const result = await statsAPI.fetchStats();
       setStats({
-        users: counts[0].status === 'fulfilled' ? counts[0].value.data().count : 0,
-        items: counts[1].status === 'fulfilled' ? counts[1].value.data().count : 0,
-        posts: counts[2].status === 'fulfilled' ? counts[2].value.data().count : 0,
-        bookings: counts[3].status === 'fulfilled' ? counts[3].value.data().count : 0,
-        schools: schoolsCount
+        users: result.stats.totalUsers || 0,
+        items: result.stats.totalMarketItems || 0,
+        posts: result.stats.totalPosts || 0,
+        bookings: result.stats.totalBookings || 0,
+        schools: result.stats.totalSchools || 0
       });
-    } catch (e) {
-      console.error("Dashboard stats error:", e);
+    } catch (error) {
+      console.error("Dashboard stats error:", error);
     } finally {
       setLoading(false);
     }

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, query, where, getDocs, doc, setDoc, serverTimestamp, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { Ticket, Copy, Plus, RefreshCw } from 'lucide-react';
+import { Ticket, Copy, Plus } from 'lucide-react';
+import { invitesAPI } from '../utils/api';
 
 export default function InviteManager() {
   const { currentUser, reauthenticateAdmin } = useAuth();
@@ -12,19 +11,14 @@ export default function InviteManager() {
   const fetchInvites = async () => {
     setLoading(true);
     try {
-      const q = query(collection(db, 'invites'), orderBy('createdAt', 'desc'));
-      const snap = await getDocs(q);
-      setInvites(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch (e) {
-      // Expected: Firestore permission errors are normal - admin operations should use API routes
-      if (e.code && e.code.includes('permission')) {
-        console.warn('InviteManager: Firestore permission denied. Use API routes for admin operations.');
-        setInvites([]); // Show empty state
-      } else {
-        console.error('Error fetching invites:', e);
-      }
+      const result = await invitesAPI.fetchInvites();
+      setInvites(result.invites || []);
+    } catch (error) {
+      console.error('Error fetching invites:', error);
+      setInvites([]); // Show empty state
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => { fetchInvites(); }, []);
@@ -35,23 +29,11 @@ export default function InviteManager() {
     const isAuth = await reauthenticateAdmin(code);
     if (!isAuth) return alert("Authorization Failed");
 
-    const inviteCode = 'ADM-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-    
     try {
-      await setDoc(doc(db, 'invites', inviteCode), {
-        code: inviteCode,
-        createdBy: currentUser.uid,
-        createdAt: serverTimestamp(),
-        used: false,
-        role: 'admin' // Default role
-      });
+      await invitesAPI.generateInvite('GAdmin');
       fetchInvites();
-    } catch (e) {
-      if (e.code && e.code.includes('permission')) {
-        alert('Permission denied. Admin operations should use API routes.');
-      } else {
-        alert('Error creating invite: ' + e.message);
-      }
+    } catch (error) {
+      alert('Error creating invite: ' + error.message);
     }
   };
 

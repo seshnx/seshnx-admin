@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Search, Filter, Calendar } from 'lucide-react';
+import { FileText, Search, Filter } from 'lucide-react';
+import { auditLogsAPI } from '../utils/api';
 
 export default function AuditLogs() {
   const [logs, setLogs] = useState([]);
@@ -12,31 +13,15 @@ export default function AuditLogs() {
 
   const fetchLogs = async () => {
     setLoading(true);
-    // TODO: Fetch from Firestore audit_logs collection via API
-    // For now, placeholder data
-    setTimeout(() => {
-      setLogs([
-        {
-          id: '1',
-          action: 'user_role_granted',
-          user: 'admin@example.com',
-          target: 'user@example.com',
-          details: 'Granted GAdmin role',
-          timestamp: new Date(),
-          ip: '192.168.1.1'
-        },
-        {
-          id: '2',
-          action: 'school_created',
-          user: 'admin@example.com',
-          target: 'New School',
-          details: 'Created school "Test School"',
-          timestamp: new Date(Date.now() - 3600000),
-          ip: '192.168.1.1'
-        }
-      ]);
+    try {
+      const result = await auditLogsAPI.fetchLogs(filter.type, 100);
+      setLogs(result.logs || []);
+    } catch (error) {
+      console.error('Error fetching audit logs:', error);
+      setLogs([]);
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   const getActionColor = (action) => {

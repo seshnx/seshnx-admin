@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart3, Users, GraduationCap, TrendingUp, Activity, Clock } from 'lucide-react';
-import { db, APP_ID, COLLECTIONS } from '../firebase';
-import { collection, getCountFromServer, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { statsAPI } from '../utils/api';
 
 export default function Analytics() {
   const [stats, setStats] = useState({
@@ -22,22 +21,14 @@ export default function Analytics() {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      // Fetch counts (with error handling for permission issues)
-      const counts = await Promise.allSettled([
-        getCountFromServer(collection(db, COLLECTIONS.PROFILES)).catch(() => ({ data: () => ({ count: 0 }) })),
-        getCountFromServer(collection(db, 'schools')).catch(() => ({ data: () => ({ count: 0 }) })),
-        getCountFromServer(collection(db, COLLECTIONS.POSTS)).catch(() => ({ data: () => ({ count: 0 }) })),
-        getCountFromServer(collection(db, COLLECTIONS.MARKET)).catch(() => ({ data: () => ({ count: 0 }) })),
-        getCountFromServer(collection(db, COLLECTIONS.BOOKINGS)).catch(() => ({ data: () => ({ count: 0 }) }))
-      ]);
-
+      const result = await statsAPI.fetchStats();
       setStats({
-        totalUsers: counts[0].status === 'fulfilled' ? counts[0].value.data().count : 0,
-        totalSchools: counts[1].status === 'fulfilled' ? counts[1].value.data().count : 0,
-        activeUsers: 0, // TODO: Calculate active users (users with activity in time range)
-        totalPosts: counts[2].status === 'fulfilled' ? counts[2].value.data().count : 0,
-        totalMarketItems: counts[3].status === 'fulfilled' ? counts[3].value.data().count : 0,
-        totalBookings: counts[4].status === 'fulfilled' ? counts[4].value.data().count : 0
+        totalUsers: result.stats.totalUsers || 0,
+        totalSchools: result.stats.totalSchools || 0,
+        activeUsers: result.stats.activeUsers || 0,
+        totalPosts: result.stats.totalPosts || 0,
+        totalMarketItems: result.stats.totalMarketItems || 0,
+        totalBookings: result.stats.totalBookings || 0
       });
     } catch (error) {
       console.error('Error fetching analytics:', error);

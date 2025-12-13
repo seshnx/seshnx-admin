@@ -66,9 +66,25 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'PUT' || req.method === 'PATCH') {
-      // Update user role
-      const { userId, profilePath, role, action } = req.body; // action: 'grant' or 'revoke'
+      const { userId, profilePath, role, action, schoolId } = req.body;
 
+      // Handle school linking
+      if (schoolId !== undefined) {
+        if (!userId || !profilePath) {
+          return res.status(400).json({ error: 'Missing required fields: userId, profilePath' });
+        }
+
+        const profileRef = db.doc(profilePath);
+        await profileRef.update({ schoolId: schoolId || null });
+
+        return res.status(200).json({ 
+          success: true,
+          userId,
+          schoolId: schoolId || null
+        });
+      }
+
+      // Handle role updates
       if (!userId || !profilePath || !role) {
         return res.status(400).json({ error: 'Missing required fields: userId, profilePath, role' });
       }

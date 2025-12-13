@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Mail, MapPin, Calendar, Shield, GraduationCap, Edit2, Save, X } from 'lucide-react';
-import { usersAPI } from '../utils/api';
-import { db, APP_ID } from '../firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { ArrowLeft, Mail, MapPin, Calendar, GraduationCap, Edit2, Save } from 'lucide-react';
+import { usersAPI, schoolsAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { schoolsAPI } from '../utils/api';
 
 export default function UserDetail() {
   const { userId } = useParams();
@@ -48,9 +45,7 @@ export default function UserDetail() {
 
   const handleLinkSchool = async () => {
     try {
-      // TODO: Use API route for this
-      const profileRef = doc(db, user.profilePath);
-      await updateDoc(profileRef, { schoolId: formData.schoolId || null });
+      await usersAPI.linkUserToSchool(user.id, user.profilePath, formData.schoolId || null);
       setUser({ ...user, schoolId: formData.schoolId || null });
       setEditing(false);
       alert('School linked successfully');

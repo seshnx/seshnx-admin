@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Save, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { settingsAPI } from '../utils/api';
 
 export default function Settings() {
   const { isSuperAdmin } = useAuth();
@@ -21,30 +22,26 @@ export default function Settings() {
   const [saveStatus, setSaveStatus] = useState(null);
 
   useEffect(() => {
-    // Load settings from Firestore (or localStorage for now)
-    const saved = localStorage.getItem('platformSettings');
-    if (saved) {
-      try {
-        setSettings({ ...settings, ...JSON.parse(saved) });
-      } catch (e) {
-        console.error('Error loading settings:', e);
-      }
-    }
-    setLoading(false);
+    fetchSettings();
   }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const result = await settingsAPI.fetchSettings();
+      setSettings({ ...settings, ...result.settings });
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
     setSaveStatus(null);
     
     try {
-      // TODO: Save to Firestore via API route
-      // For now, save to localStorage
-      localStorage.setItem('platformSettings', JSON.stringify(settings));
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      await settingsAPI.updateSettings(settings);
       setSaveStatus('success');
       setTimeout(() => setSaveStatus(null), 3000);
     } catch (error) {

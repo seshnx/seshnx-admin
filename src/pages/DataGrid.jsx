@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, query, limit, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db, APP_ID } from '../firebase';
-import { Search, ShieldAlert, Eye, Trash2, RefreshCw, MoreHorizontal } from 'lucide-react';
+import { Search, ShieldAlert, Eye } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { usersAPI, userActionsAPI } from '../utils/api';
 
 // Modal for Super Admin Actions
 const SuperActionModal = ({ action, onConfirm, onCancel }) => {
@@ -32,21 +31,14 @@ export default function DataGrid() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-        // Query logic: Fetch profiles and merge with wallet/auth data conceptually
-        const q = query(collection(db, `artifacts/${APP_ID}/public/data/profiles`), limit(100)); // 100 items for density
-        const snap = await getDocs(q);
-        const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setUsers(data);
-    } catch (e) {
-        // Expected: Firestore permission errors are normal - admin operations should use API routes
-        if (e.code && e.code.includes('permission')) {
-            console.warn('DataGrid: Firestore permission denied. Use API routes for admin operations.');
-            setUsers([]); // Show empty state
-        } else {
-            console.error('DataGrid fetch error:', e);
-        }
+      const result = await usersAPI.fetchUsers();
+      setUsers(result.users || []);
+    } catch (error) {
+      console.error('DataGrid fetch error:', error);
+      setUsers([]); // Show empty state
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => { fetchUsers(); }, []);
@@ -59,22 +51,19 @@ export default function DataGrid() {
       }
 
       try {
-          // TODO: Replace with API route for admin operations
+          const user = users.find(u => u.id === superAction.targetId);
+          const profilePath = user?.profilePath || `artifacts/seshnx-db/users/${superAction.targetId}/profiles/main`;
+
           if (superAction.type === 'ban') {
-              await updateDoc(doc(db, `artifacts/${APP_ID}/public/data/profiles`, superAction.targetId), { isBanned: true });
+              await userActionsAPI.banUser(superAction.targetId, profilePath);
           }
           if (superAction.type === 'delete') {
-              // Real implementation would trigger a Cloud Function to wipe subcollections
-              await deleteDoc(doc(db, `artifacts/${APP_ID}/public/data/profiles`, superAction.targetId));
+              await userActionsAPI.deleteUser(superAction.targetId, profilePath);
           }
           fetchUsers();
           setSuperAction(null);
-      } catch (e) {
-          if (e.code && e.code.includes('permission')) {
-              alert("Permission denied. Admin operations should use API routes.");
-          } else {
-              alert("Action failed: " + e.message);
-          }
+      } catch (error) {
+          alert("Action failed: " + error.message);
       }
   };
 
