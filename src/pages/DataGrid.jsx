@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Search, ShieldAlert, Eye } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { usersAPI, userActionsAPI } from '../utils/api';
+import RefreshButton from '../components/RefreshButton';
+import RealtimeIndicator from '../components/RealtimeIndicator';
 
 // Modal for Super Admin Actions
 const SuperActionModal = ({ action, onConfirm, onCancel }) => {
@@ -26,6 +28,7 @@ export default function DataGrid() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [superAction, setSuperAction] = useState(null); // { type: 'ban', targetId: 'xyz' }
+  const [lastUpdate, setLastUpdate] = useState(null);
   const { reauthenticateAdmin } = useAuth();
 
   const fetchUsers = async () => {
@@ -33,6 +36,7 @@ export default function DataGrid() {
     try {
       const result = await usersAPI.fetchUsers();
       setUsers(result.users || []);
+      setLastUpdate(Date.now());
     } catch (error) {
       console.error('DataGrid fetch error:', error);
       setUsers([]); // Show empty state
@@ -75,8 +79,12 @@ export default function DataGrid() {
             <Search size={14} className="text-gray-500"/>
             <input className="bg-transparent border-none outline-none text-xs text-white w-full" placeholder="Search GUID, Email, or Name..." />
         </div>
-        <div className="text-xs text-gray-500 font-mono">
-            Records: {users.length} | Latency: 24ms
+        <div className="flex items-center gap-3">
+          <RealtimeIndicator lastUpdate={lastUpdate} />
+          <div className="text-xs text-gray-500 font-mono">
+            Records: {users.length}
+          </div>
+          <RefreshButton onRefresh={fetchUsers} disabled={loading} size="small" />
         </div>
       </div>
 

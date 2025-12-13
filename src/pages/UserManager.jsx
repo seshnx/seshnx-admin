@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { MapPin, Shield, Plus, X, Crown } from 'lucide-react';
 import { usersAPI } from '../utils/api';
+import RefreshButton from '../components/RefreshButton';
+import RealtimeIndicator from '../components/RealtimeIndicator';
 
 export default function UserManager() {
   const navigate = useNavigate();
@@ -10,6 +12,7 @@ export default function UserManager() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(null);
 
   useEffect(() => {
     fetchUsers();
@@ -19,6 +22,7 @@ export default function UserManager() {
     try {
       const result = await usersAPI.fetchUsers();
       setUsers(result.users || []);
+      setLastUpdate(Date.now());
     } catch (error) {
       console.error('Error fetching users:', error);
       alert('Error loading users: ' + error.message);
@@ -66,8 +70,12 @@ export default function UserManager() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-white">User Management</h2>
-          <p className="text-gray-400 text-sm mt-1">Manage user roles and permissions</p>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-gray-400 text-sm">Manage user roles and permissions</p>
+            <RealtimeIndicator lastUpdate={lastUpdate} />
+          </div>
         </div>
+        <RefreshButton onRefresh={fetchUsers} disabled={loading} />
       </div>
 
       {loading ? (

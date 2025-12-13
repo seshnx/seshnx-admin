@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GraduationCap, Plus, Edit2, Trash2, MapPin, Palette, Clock } from 'lucide-react';
 import { schoolsAPI } from '../utils/api';
+import RefreshButton from '../components/RefreshButton';
+import RealtimeIndicator from '../components/RealtimeIndicator';
 
 export default function SchoolManager() {
   const navigate = useNavigate();
@@ -9,6 +11,7 @@ export default function SchoolManager() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingSchool, setEditingSchool] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     address: '',
@@ -24,6 +27,7 @@ export default function SchoolManager() {
     try {
       const result = await schoolsAPI.fetchSchools();
       setSchools(result.schools || []);
+      setLastUpdate(Date.now());
     } catch (error) {
       console.error('Error fetching schools:', error);
       alert('Error loading schools: ' + error.message);
@@ -103,14 +107,20 @@ export default function SchoolManager() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-white">School Management</h2>
-          <p className="text-gray-400 text-sm mt-1">Create and manage schools on the platform</p>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-gray-400 text-sm">Create and manage schools on the platform</p>
+            <RealtimeIndicator lastUpdate={lastUpdate} />
+          </div>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="bg-admin-accent hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-        >
-          <Plus size={20} /> New School
-        </button>
+        <div className="flex items-center gap-2">
+          <RefreshButton onRefresh={fetchSchools} disabled={loading} />
+          <button
+            onClick={openCreateModal}
+            className="bg-admin-accent hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+          >
+            <Plus size={20} /> New School
+          </button>
+        </div>
       </div>
 
       {loading ? (

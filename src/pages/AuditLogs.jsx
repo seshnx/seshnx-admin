@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Search, Filter } from 'lucide-react';
 import { auditLogsAPI } from '../utils/api';
+import RefreshButton from '../components/RefreshButton';
+import RealtimeIndicator from '../components/RealtimeIndicator';
 
 export default function AuditLogs() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState({ type: 'all', user: '' });
+  const [lastUpdate, setLastUpdate] = useState(null);
 
   useEffect(() => {
     fetchLogs();
@@ -16,6 +19,7 @@ export default function AuditLogs() {
     try {
       const result = await auditLogsAPI.fetchLogs(filter.type, 100);
       setLogs(result.logs || []);
+      setLastUpdate(Date.now());
     } catch (error) {
       console.error('Error fetching audit logs:', error);
       setLogs([]);
@@ -35,9 +39,14 @@ export default function AuditLogs() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-white">Audit Logs</h2>
-          <p className="text-gray-400 text-sm mt-1">Track all administrative actions and changes</p>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-gray-400 text-sm">Track all administrative actions and changes</p>
+            <RealtimeIndicator lastUpdate={lastUpdate} />
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <RefreshButton onRefresh={fetchLogs} disabled={loading} />
+          <div className="flex gap-2">
           <div className="relative">
             <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
             <input
@@ -55,7 +64,8 @@ export default function AuditLogs() {
             <option value="user_role">User Roles</option>
             <option value="school">School Management</option>
             <option value="settings">Settings Changes</option>
-          </select>
+            </select>
+          </div>
         </div>
       </div>
 
