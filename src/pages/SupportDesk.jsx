@@ -9,14 +9,33 @@ export default function SupportDesk() {
   useEffect(() => {
     // Real-time listener for incoming support tickets
     const q = query(collection(db, COLLECTIONS.REPORTS), orderBy('timestamp', 'desc'));
-    return onSnapshot(q, (snap) => {
-      setRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    return onSnapshot(q, 
+      (snap) => {
+        setRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      },
+      (error) => {
+        // Expected: Firestore permission errors are normal - admin operations should use API routes
+        if (error.code && error.code.includes('permission')) {
+          console.warn('SupportDesk: Firestore permission denied. Use API routes for admin operations.');
+          setRequests([]); // Show empty state
+        } else {
+          console.error('SupportDesk error:', error);
+        }
+      }
+    );
   }, []);
 
   const resolveTicket = async (id) => {
     if(confirm("Mark this ticket as Resolved?")) {
+      try {
         await updateDoc(doc(db, COLLECTIONS.REPORTS, id), { status: 'Resolved' });
+      } catch (e) {
+        if (e.code && e.code.includes('permission')) {
+          alert('Permission denied. Admin operations should use API routes.');
+        } else {
+          alert('Error resolving ticket: ' + e.message);
+        }
+      }
     }
   };
 

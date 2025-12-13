@@ -159,11 +159,15 @@ export function AuthProvider({ children }) {
             }
           } catch (error) {
             // Expected error - user may only exist in auth project, not main database
-            // Only log if it's not a permission error (which is expected)
-            if (!error.code || !error.code.includes('permission')) {
+            // Permission errors are expected and can be safely ignored
+            if (error.code && error.code.includes('permission')) {
+              // Silently continue - permission denied is expected for auth-project-only users
+              // This is normal when using dual-project setup
+            } else if (error.code && !error.code.includes('not-found')) {
+              // Log non-permission errors
               console.warn("Main database profile check error:", error);
             }
-            // Silently continue - permission denied is expected for auth-project-only users
+            // Continue - permission denied is expected for auth-project-only users
           }
         }
         

@@ -37,7 +37,15 @@ export default function DataGrid() {
         const snap = await getDocs(q);
         const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         setUsers(data);
-    } catch (e) { console.error(e); }
+    } catch (e) {
+        // Expected: Firestore permission errors are normal - admin operations should use API routes
+        if (e.code && e.code.includes('permission')) {
+            console.warn('DataGrid: Firestore permission denied. Use API routes for admin operations.');
+            setUsers([]); // Show empty state
+        } else {
+            console.error('DataGrid fetch error:', e);
+        }
+    }
     setLoading(false);
   };
 
@@ -51,6 +59,7 @@ export default function DataGrid() {
       }
 
       try {
+          // TODO: Replace with API route for admin operations
           if (superAction.type === 'ban') {
               await updateDoc(doc(db, `artifacts/${APP_ID}/public/data/profiles`, superAction.targetId), { isBanned: true });
           }
@@ -61,7 +70,11 @@ export default function DataGrid() {
           fetchUsers();
           setSuperAction(null);
       } catch (e) {
-          alert("Action failed: " + e.message);
+          if (e.code && e.code.includes('permission')) {
+              alert("Permission denied. Admin operations should use API routes.");
+          } else {
+              alert("Action failed: " + e.message);
+          }
       }
   };
 

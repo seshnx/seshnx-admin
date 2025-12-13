@@ -11,9 +11,19 @@ export default function InviteManager() {
 
   const fetchInvites = async () => {
     setLoading(true);
-    const q = query(collection(db, 'invites'), orderBy('createdAt', 'desc'));
-    const snap = await getDocs(q);
-    setInvites(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    try {
+      const q = query(collection(db, 'invites'), orderBy('createdAt', 'desc'));
+      const snap = await getDocs(q);
+      setInvites(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) {
+      // Expected: Firestore permission errors are normal - admin operations should use API routes
+      if (e.code && e.code.includes('permission')) {
+        console.warn('InviteManager: Firestore permission denied. Use API routes for admin operations.');
+        setInvites([]); // Show empty state
+      } else {
+        console.error('Error fetching invites:', e);
+      }
+    }
     setLoading(false);
   };
 
@@ -27,15 +37,22 @@ export default function InviteManager() {
 
     const inviteCode = 'ADM-' + Math.random().toString(36).substring(2, 8).toUpperCase();
     
-    await setDoc(doc(db, 'invites', inviteCode), {
-      code: inviteCode,
-      createdBy: currentUser.uid,
-      createdAt: serverTimestamp(),
-      used: false,
-      role: 'admin' // Default role
-    });
-    
-    fetchInvites();
+    try {
+      await setDoc(doc(db, 'invites', inviteCode), {
+        code: inviteCode,
+        createdBy: currentUser.uid,
+        createdAt: serverTimestamp(),
+        used: false,
+        role: 'admin' // Default role
+      });
+      fetchInvites();
+    } catch (e) {
+      if (e.code && e.code.includes('permission')) {
+        alert('Permission denied. Admin operations should use API routes.');
+      } else {
+        alert('Error creating invite: ' + e.message);
+      }
+    }
   };
 
   return (

@@ -34,7 +34,13 @@ export default function Dashboard() {
           bookings: bookSnap.data().count
         });
       } catch (e) {
-        console.error("Admin stats error:", e);
+        // Expected: Firestore permission errors are normal - admin operations should use API routes
+        if (e.code && e.code.includes('permission')) {
+          console.warn('Dashboard: Firestore permission denied. Use API routes for admin operations.');
+          // Keep existing stats (or set to 0)
+        } else {
+          console.error("Admin stats error:", e);
+        }
       }
     };
     fetchStats();
