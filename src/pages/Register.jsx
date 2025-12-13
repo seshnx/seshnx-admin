@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, APP_ID, getAuthDb } from '../firebase';
 import { Shield, UserPlus, ArrowRight, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { registerAPI } from '../utils/api';
 
 export default function Register() {
   const [formData, setFormData] = useState({ email: '', password: '', inviteCode: '' });
@@ -17,73 +15,24 @@ export default function Register() {
     setError('');
 
     try {
-      // TEMP: For testing - allow registration without invite code
-      const useInviteCode = formData.inviteCode.trim().length > 0;
-      let role = 'GAdmin'; // Default role for temp accounts
-      let inviteData = null;
-
-      if (useInviteCode) {
-        // 1. Verify Invite Code (if provided)
-        const inviteRef = doc(db, 'invites', formData.inviteCode);
-        const inviteSnap = await getDoc(inviteRef);
-
-        if (!inviteSnap.exists()) {
-          throw new Error("Invalid or expired invite code.");
-        }
-
-        inviteData = inviteSnap.data();
-        if (inviteData.used) {
-          throw new Error("This invite code has already been used.");
-        }
-
-        role = inviteData.role || 'GAdmin';
-      }
-
-      // 2. Create Authentication User (in auth project)
-      let user;
+      // Use API for registration (handles both auth and admin record creation)
       try {
-        const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-        user = userCredential.user;
+        const role = formData.inviteCode.trim().length > 0 
+          ? 'GAdmin' // If invite code provided, use it (TODO: verify invite code via API)
+          : 'GAdmin'; // Default role for temp accounts
+        
+        await registerAPI.register(formData.email, formData.password, role);
+        
+        // Redirect to login (account created, can now login)
+        navigate('/login');
       } catch (err) {
-        if (err.code === 'auth/email-already-in-use') {
+        if (err.message && err.message.includes('already exists')) {
           setError('Account already exists. Please login instead.');
           setTimeout(() => navigate('/login'), 2000);
           return;
         }
         throw err;
       }
-
-      // 3. Create Admin Record in Auth Project Firestore
-      // Note: This may fail due to Firestore rules, but login will still work with temp bypass
-      try {
-        const authDb = getAuthDb();
-        await setDoc(doc(authDb, 'admins', user.uid), {
-          email: user.email,
-          role: role,
-          active: true,
-          createdAt: serverTimestamp(),
-          createdBy: inviteData?.createdBy || 'self-registration',
-          status: 'active'
-        });
-        console.log('Admin document created successfully');
-      } catch (firestoreError) {
-        // Firestore write may fail due to rules, but that's ok - login bypass will work
-        console.warn('Could not create admin document (Firestore rules may block writes):', firestoreError);
-        console.warn('Login will still work with temporary bypass for testing');
-      }
-
-      // 4. If invite code was used, invalidate it
-      if (useInviteCode && inviteData) {
-        const inviteRef = doc(db, 'invites', formData.inviteCode);
-        await updateDoc(inviteRef, {
-          used: true,
-          usedBy: user.uid,
-          usedAt: serverTimestamp()
-        });
-      }
-
-      // 5. Redirect to login (account created, can now login)
-      navigate('/login');
 
     } catch (err) {
       console.error(err);

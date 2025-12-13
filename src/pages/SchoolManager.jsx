@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
 import { GraduationCap, Plus, Edit2, Trash2, MapPin, Palette, Clock } from 'lucide-react';
+import { schoolsAPI } from '../utils/api';
 
 export default function SchoolManager() {
   const [schools, setSchools] = useState([]);
@@ -21,9 +20,8 @@ export default function SchoolManager() {
 
   const fetchSchools = async () => {
     try {
-      const q = query(collection(db, 'schools'), orderBy('createdAt', 'desc'));
-      const snap = await getDocs(q);
-      setSchools(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const result = await schoolsAPI.fetchSchools();
+      setSchools(result.schools || []);
     } catch (error) {
       console.error('Error fetching schools:', error);
       alert('Error loading schools: ' + error.message);
@@ -34,19 +32,11 @@ export default function SchoolManager() {
 
   const handleCreate = async () => {
     try {
-      const schoolData = {
-        ...formData,
-        admins: [],
-        createdAt: serverTimestamp()
-      };
-      const newSchoolRef = await addDoc(collection(db, 'schools'), schoolData);
-      const newSchoolId = newSchoolRef.id;
-      
-      // Create default Admin role for the school
-      await addDoc(collection(db, `schools/${newSchoolId}/roles`), {
-        name: 'Admin',
-        color: '#dc2626',
-        permissions: []
+      const result = await schoolsAPI.createSchool({
+        name: formData.name,
+        address: formData.address,
+        primaryColor: formData.primaryColor,
+        requiredHours: formData.requiredHours
       });
 
       setShowModal(false);
@@ -60,8 +50,7 @@ export default function SchoolManager() {
 
   const handleUpdate = async () => {
     try {
-      const schoolRef = doc(db, 'schools', editingSchool.id);
-      await updateDoc(schoolRef, {
+      await schoolsAPI.updateSchool(editingSchool.id, {
         name: formData.name,
         address: formData.address,
         primaryColor: formData.primaryColor,
@@ -82,7 +71,7 @@ export default function SchoolManager() {
       return;
     }
     try {
-      await deleteDoc(doc(db, 'schools', schoolId));
+      await schoolsAPI.deleteSchool(schoolId);
       fetchSchools();
     } catch (error) {
       console.error('Error deleting school:', error);

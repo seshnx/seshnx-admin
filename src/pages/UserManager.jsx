@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { collectionGroup, query, limit, getDocs, doc, updateDoc, collection } from 'firebase/firestore';
-import { db, APP_ID, COLLECTIONS } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { MapPin, Shield, Plus, X, Crown } from 'lucide-react';
+import { usersAPI } from '../utils/api';
 
 export default function UserManager() {
   const { isSuperAdmin, currentUser } = useAuth();
@@ -16,54 +15,11 @@ export default function UserManager() {
 
   const fetchUsers = async () => {
     try {
-      // Try public profiles collection first (common pattern)
-      const profilesRef = collection(db, COLLECTIONS.PROFILES);
-      const q = query(profilesRef, limit(100));
-      const snap = await getDocs(q);
-      
-      const usersData = snap.docs.map(d => {
-        const data = d.data();
-        // Build profile path: try artifacts/{appId}/users/{userId}/profiles/main
-        const profilePath = `artifacts/${APP_ID}/users/${d.id}/profiles/main`;
-        return {
-          id: d.id,
-          profilePath: profilePath,
-          ...data
-        };
-      });
-      setUsers(usersData);
+      const result = await usersAPI.fetchUsers();
+      setUsers(result.users || []);
     } catch (error) {
       console.error('Error fetching users:', error);
-      // Fallback: try collectionGroup query
-      try {
-        const profilesRef = collectionGroup(db, 'profiles');
-        const q = query(profilesRef, limit(100));
-        const snap = await getDocs(q);
-        
-        const usersData = [];
-        for (const docSnap of snap.docs) {
-          // Only process documents with ID 'main'
-          if (docSnap.id === 'main') {
-            const data = docSnap.data();
-            // Extract userId from path: artifacts/{appId}/users/{userId}/profiles/main
-            const pathParts = docSnap.ref.path.split('/');
-            const userIdIndex = pathParts.indexOf('users');
-            const userId = userIdIndex !== -1 && userIdIndex < pathParts.length - 1 ? pathParts[userIdIndex + 1] : null;
-            
-            if (userId) {
-              usersData.push({
-                id: userId,
-                profilePath: docSnap.ref.path,
-                ...data
-              });
-            }
-          }
-        }
-        setUsers(usersData);
-      } catch (fallbackError) {
-        console.error('Fallback fetch also failed:', fallbackError);
-        alert('Error loading users: ' + error.message);
-      }
+      alert('Error loading users: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -73,7 +29,6 @@ export default function UserManager() {
     try {
       const user = users.find(u => u.id === userId);
       const currentRoles = user?.accountTypes || [];
-      const isTargetSuperAdmin = currentRoles.includes('SuperAdmin');
       
       // Only SuperAdmin can manage SuperAdmin role
       if (role === 'SuperAdmin' && !isSuperAdmin) {
@@ -88,27 +43,13 @@ export default function UserManager() {
         }
       }
       
-      const profileRef = doc(db, profilePath);
-      let newRoles;
-      if (add) {
-        newRoles = currentRoles.includes(role) ? currentRoles : [...currentRoles, role];
-      } else {
-        // When removing SuperAdmin, ensure at least GAdmin remains
-        if (role === 'SuperAdmin' && !currentRoles.includes('GAdmin')) {
-          newRoles = currentRoles.filter(r => r !== 'SuperAdmin').concat('GAdmin');
-        } else {
-          newRoles = currentRoles.filter(r => r !== role);
-        }
-      }
-      
-      await updateDoc(profileRef, {
-        accountTypes: newRoles
-      });
+      const action = add ? 'grant' : 'revoke';
+      const result = await usersAPI.updateUserRole(userId, profilePath, role, action);
       
       // Update local state
       setUsers(users.map(u => 
         u.id === userId 
-          ? { ...u, accountTypes: newRoles }
+          ? { ...u, accountTypes: result.accountTypes }
           : u
       ));
       setEditingUser(null);
