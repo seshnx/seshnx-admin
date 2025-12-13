@@ -46,6 +46,12 @@ export function AuthProvider({ children }) {
         
         if (isMasterAccount || isBackupAdmin) {
           // Master/Backup accounts always have access (cannot be blocked)
+          console.log('✅ Master/Backup account detected:', {
+            email: user.email,
+            uid: user.uid,
+            isMasterAccount,
+            isBackupAdmin
+          });
           hasAccess = true;
           isSuperAdmin = true;
           userProfile = { 
@@ -60,6 +66,14 @@ export function AuthProvider({ children }) {
           setLoading(false);
           return;
         }
+        
+        console.log('Master account check - no match:', {
+          userEmail: user.email,
+          userUid: user.uid,
+          masterEmail: MASTER_ACCOUNT_EMAIL,
+          masterUid: MASTER_ACCOUNT_UID,
+          backupUids: BACKUP_ADMIN_UIDS
+        });
         
         // Check 2: Auth Project Admin Collection (seshnx-admin-auth)
         // This is isolated from the main database - cannot be compromised via main DB

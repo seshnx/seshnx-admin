@@ -5,10 +5,15 @@
 ### Environment Variables in Vercel
 - [x] `FIREBASE_SERVICE_ACCOUNT_DB` - Database project service account JSON
 - [x] `FIREBASE_SERVICE_ACCOUNT_AUTH` - Auth project service account JSON
-- [ ] `VITE_MASTER_ACCOUNT_EMAIL` - Master account email (optional but recommended)
-- [ ] `VITE_MASTER_ACCOUNT_UID` - Master account UID (optional but recommended)
-- [ ] `VITE_BACKUP_ADMIN_UIDS` - Backup admin UIDs comma-separated (optional)
+- [ ] `VITE_MASTER_ACCOUNT_EMAIL` - Master account email (for client-side)
+- [ ] `VITE_MASTER_ACCOUNT_UID` - Master account UID (for client-side)
+- [ ] `MASTER_ACCOUNT_EMAIL` - Master account email (for API routes/server-side)
+- [ ] `MASTER_ACCOUNT_UID` - Master account UID (for API routes/server-side)
+- [ ] `VITE_BACKUP_ADMIN_UIDS` - Backup admin UIDs (client-side)
+- [ ] `BACKUP_ADMIN_UIDS` - Backup admin UIDs (server-side)
 - [ ] `VITE_FIREBASE_PROJECT_ID` - Should be 'seshnx-db' (optional, defaults to 'seshnx-db')
+
+**Note:** For master account to work in both client AND API routes, you need BOTH `VITE_` and non-`VITE_` versions of the env vars.
 
 ### First-Time Setup: Create Admins Collection
 The `admins` collection in `seshnx-admin-auth` doesn't exist yet. It will be created automatically, but you need to create the first admin record:

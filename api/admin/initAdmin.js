@@ -165,9 +165,11 @@ export async function verifyAdmin(token) {
     }
 
     // Fallback: Check master account from env vars
-    const masterEmail = process.env.VITE_MASTER_ACCOUNT_EMAIL || process.env.MASTER_ACCOUNT_EMAIL;
-    const masterUid = process.env.VITE_MASTER_ACCOUNT_UID || process.env.MASTER_ACCOUNT_UID;
-    const backupUids = (process.env.VITE_BACKUP_ADMIN_UIDS || process.env.BACKUP_ADMIN_UIDS || '')
+    // Note: In server-side code (API routes), use non-VITE_ prefixed vars
+    // VITE_ prefix only works in client-side code
+    const masterEmail = process.env.MASTER_ACCOUNT_EMAIL || process.env.VITE_MASTER_ACCOUNT_EMAIL;
+    const masterUid = process.env.MASTER_ACCOUNT_UID || process.env.VITE_MASTER_ACCOUNT_UID;
+    const backupUids = (process.env.BACKUP_ADMIN_UIDS || process.env.VITE_BACKUP_ADMIN_UIDS || '')
       .split(',')
       .map(u => u.trim())
       .filter(Boolean);
