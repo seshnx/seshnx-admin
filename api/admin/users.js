@@ -1,6 +1,6 @@
 import { verifyAdmin, getDb } from './initAdmin.js';
 
-const APP_ID = process.env.VITE_FIREBASE_PROJECT_ID || 'seshnx-db';
+const APP_ID = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'seshnx-db';
 
 export default async function handler(req, res) {
   // Enable CORS
