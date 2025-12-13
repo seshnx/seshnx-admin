@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { MapPin, Shield, Plus, X, Crown } from 'lucide-react';
 import { usersAPI } from '../utils/api';
 
 export default function UserManager() {
+  const navigate = useNavigate();
   const { isSuperAdmin, currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -124,12 +126,20 @@ export default function UserManager() {
                     </div>
                   </td>
                   <td className="p-4 text-right">
-                    <button
-                      onClick={() => setEditingUser(editingUser === u.id ? null : u.id)}
-                      className="bg-gray-800 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs transition"
-                    >
-                      {editingUser === u.id ? 'Cancel' : 'Manage Roles'}
-                    </button>
+                    <div className="flex items-center gap-2 justify-end">
+                      <button
+                        onClick={() => navigate(`/users/${u.id}`)}
+                        className="bg-admin-accent hover:bg-blue-600 text-white px-3 py-1 rounded text-xs transition"
+                      >
+                        View Details
+                      </button>
+                      <button
+                        onClick={() => setEditingUser(editingUser === u.id ? null : u.id)}
+                        className="bg-gray-800 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs transition"
+                      >
+                        {editingUser === u.id ? 'Cancel' : 'Manage Roles'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

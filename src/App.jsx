@@ -8,7 +8,13 @@ import DataGrid from './pages/DataGrid';
 import UserManager from './pages/UserManager';
 import InviteManager from './pages/InviteManager';
 import SchoolManager from './pages/SchoolManager';
-import { LayoutDashboard, Users, Lock, Ticket, GraduationCap, LogOut, Crown } from 'lucide-react';
+import { LayoutDashboard, Users, Lock, Ticket, GraduationCap, LogOut, Crown, BarChart3, Settings, FileText, HelpCircle } from 'lucide-react';
+import SettingsPage from './pages/Settings';
+import Analytics from './pages/Analytics';
+import AuditLogs from './pages/AuditLogs';
+import UserDetail from './pages/UserDetail';
+import SchoolDetail from './pages/SchoolDetail';
+import SupportDesk from './pages/SupportDesk';
 import { signOut } from 'firebase/auth';
 import { auth } from './firebase';
 
@@ -24,7 +30,11 @@ const Sidebar = () => {
         <NavItem to="/" icon={<LayoutDashboard size={20}/>} label="Overview" />
         <NavItem to="/users" icon={<Users size={20}/>} label="Users" />
         <NavItem to="/schools" icon={<GraduationCap size={20}/>} label="Schools" />
+        <NavItem to="/analytics" icon={<BarChart3 size={20}/>} label="Analytics" />
         <NavItem to="/invites" icon={<Ticket size={20}/>} label="Access Keys" />
+        <NavItem to="/support" icon={<HelpCircle size={20}/>} label="Support" />
+        <NavItem to="/audit-logs" icon={<FileText size={20}/>} label="Audit Logs" />
+        <NavItem to="/settings" icon={<Settings size={20}/>} label="Settings" />
       </nav>
       <div className="p-4 border-t border-gray-800">
         <div className="text-xs text-gray-500 mb-2 hidden lg:block px-4 flex items-center gap-2">
@@ -86,8 +96,14 @@ export default function App() {
           <Route path="/enroll-mfa" element={<ProtectedRoute><EnrollMfa /></ProtectedRoute>} />
           <Route path="/" element={<ProtectedRoute><DataGrid /></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute><UserManager /></ProtectedRoute>} />
+          <Route path="/users/:userId" element={<ProtectedRoute><UserDetail /></ProtectedRoute>} />
           <Route path="/schools" element={<ProtectedRoute><SchoolManager /></ProtectedRoute>} />
+          <Route path="/schools/:schoolId" element={<ProtectedRoute><SchoolDetail /></ProtectedRoute>} />
+          <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
           <Route path="/invites" element={<ProtectedRoute><InviteManager /></ProtectedRoute>} />
+          <Route path="/support" element={<ProtectedRoute><SupportDesk /></ProtectedRoute>} />
+          <Route path="/audit-logs" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </BrowserRouter>

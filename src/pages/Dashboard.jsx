@@ -1,68 +1,145 @@
 import React, { useEffect, useState } from 'react';
 import { collection, getCountFromServer } from 'firebase/firestore';
 import { db, COLLECTIONS } from '../firebase';
-import { Users, DollarSign, FileText, Activity } from 'lucide-react';
+import { Users, DollarSign, FileText, Activity, GraduationCap, TrendingUp, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { schoolsAPI } from '../utils/api';
 
-const StatCard = ({ title, value, icon, color }) => (
-  <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between">
-    <div>
-      <p className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">{title}</p>
-      <h3 className="text-3xl font-extrabold">{value}</h3>
+const StatCard = ({ title, value, icon, color, subtitle, link }) => {
+  const content = (
+    <div className="bg-admin-card border border-gray-800 rounded-lg p-6 hover:border-gray-700 transition-colors">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-gray-400 text-sm font-medium">{title}</div>
+        <div className={color}>{icon}</div>
+      </div>
+      <div className="text-3xl font-bold text-white mb-1">{value.toLocaleString()}</div>
+      {subtitle && <div className="text-xs text-gray-500">{subtitle}</div>}
     </div>
-    <div className={`p-3 rounded-full ${color} text-white`}>{icon}</div>
-  </div>
-);
+  );
+
+  if (link) {
+    return <Link to={link}>{content}</Link>;
+  }
+  return content;
+};
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({ users: 0, items: 0, posts: 0, bookings: 0 });
+  const [stats, setStats] = useState({ users: 0, items: 0, posts: 0, bookings: 0, schools: 0 });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Note: Aggregation queries count documents without downloading them (Cost efficient)
-    const fetchStats = async () => {
-      try {
-        const [usersSnap, marketSnap, postsSnap, bookSnap] = await Promise.all([
-          getCountFromServer(collection(db, COLLECTIONS.PROFILES)),
-          getCountFromServer(collection(db, COLLECTIONS.MARKET)),
-          getCountFromServer(collection(db, COLLECTIONS.POSTS)),
-          getCountFromServer(collection(db, COLLECTIONS.BOOKINGS))
-        ]);
-
-        setStats({
-          users: usersSnap.data().count,
-          items: marketSnap.data().count,
-          posts: postsSnap.data().count,
-          bookings: bookSnap.data().count
-        });
-      } catch (e) {
-        // Expected: Firestore permission errors are normal - admin operations should use API routes
-        if (e.code && e.code.includes('permission')) {
-          console.warn('Dashboard: Firestore permission denied. Use API routes for admin operations.');
-          // Keep existing stats (or set to 0)
-        } else {
-          console.error("Admin stats error:", e);
-        }
-      }
-    };
     fetchStats();
   }, []);
 
+  const fetchStats = async () => {
+    try {
+      // Fetch schools count
+      let schoolsCount = 0;
+      try {
+        const schoolsResult = await schoolsAPI.fetchSchools();
+        schoolsCount = schoolsResult.schools?.length || 0;
+      } catch (e) {
+        console.warn('Error fetching schools count:', e);
+      }
+
+      // Fetch other counts
+      const counts = await Promise.allSettled([
+        getCountFromServer(collection(db, COLLECTIONS.PROFILES)).catch(() => ({ data: () => ({ count: 0 }) })),
+        getCountFromServer(collection(db, COLLECTIONS.MARKET)).catch(() => ({ data: () => ({ count: 0 }) })),
+        getCountFromServer(collection(db, COLLECTIONS.POSTS)).catch(() => ({ data: () => ({ count: 0 }) })),
+        getCountFromServer(collection(db, COLLECTIONS.BOOKINGS)).catch(() => ({ data: () => ({ count: 0 }) }))
+      ]);
+
+      setStats({
+        users: counts[0].status === 'fulfilled' ? counts[0].value.data().count : 0,
+        items: counts[1].status === 'fulfilled' ? counts[1].value.data().count : 0,
+        posts: counts[2].status === 'fulfilled' ? counts[2].value.data().count : 0,
+        bookings: counts[3].status === 'fulfilled' ? counts[3].value.data().count : 0,
+        schools: schoolsCount
+      });
+    } catch (e) {
+      console.error("Dashboard stats error:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Platform Overview</h2>
-        <p className="text-gray-500">Real-time metrics from the live production database.</p>
+        <h2 className="text-2xl font-bold text-white">Platform Overview</h2>
+        <p className="text-gray-400 text-sm mt-1">Real-time metrics from the live production database</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Total Users" value={stats.users} icon={<Users size={24}/>} color="bg-blue-500" />
-        <StatCard title="Market Items" value={stats.items} icon={<DollarSign size={24}/>} color="bg-green-500" />
-        <StatCard title="Total Posts" value={stats.posts} icon={<FileText size={24}/>} color="bg-purple-500" />
-        <StatCard title="Bookings" value={stats.bookings} icon={<Activity size={24}/>} color="bg-orange-500" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCard 
+          title="Total Users" 
+          value={stats.users} 
+          icon={<Users size={24}/>} 
+          color="text-blue-400"
+          subtitle="Registered users"
+          link="/users"
+        />
+        <StatCard 
+          title="Schools" 
+          value={stats.schools} 
+          icon={<GraduationCap size={24}/>} 
+          color="text-purple-400"
+          subtitle="Active schools"
+          link="/schools"
+        />
+        <StatCard 
+          title="Market Items" 
+          value={stats.items} 
+          icon={<DollarSign size={24}/>} 
+          color="text-green-400"
+          subtitle="Marketplace listings"
+        />
+        <StatCard 
+          title="Total Posts" 
+          value={stats.posts} 
+          icon={<FileText size={24}/>} 
+          color="text-yellow-400"
+          subtitle="User posts"
+        />
+        <StatCard 
+          title="Bookings" 
+          value={stats.bookings} 
+          icon={<Activity size={24}/>} 
+          color="text-orange-400"
+          subtitle="Service bookings"
+        />
       </div>
 
-      {/* Placeholder for Graphs */}
-      <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl border dark:border-gray-700 h-96 flex items-center justify-center text-gray-400">
-        Chart integration would go here (Recharts or similar)
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Link to="/analytics" className="bg-admin-card border border-gray-800 rounded-lg p-6 hover:border-admin-accent transition-colors">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-white font-bold mb-1">View Analytics</h3>
+              <p className="text-gray-400 text-sm">Detailed metrics and insights</p>
+            </div>
+            <TrendingUp size={24} className="text-admin-accent" />
+          </div>
+        </Link>
+        <Link to="/settings" className="bg-admin-card border border-gray-800 rounded-lg p-6 hover:border-admin-accent transition-colors">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-white font-bold mb-1">Platform Settings</h3>
+              <p className="text-gray-400 text-sm">Configure platform options</p>
+            </div>
+            <ArrowRight size={24} className="text-admin-accent" />
+          </div>
+        </Link>
+        <Link to="/audit-logs" className="bg-admin-card border border-gray-800 rounded-lg p-6 hover:border-admin-accent transition-colors">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-white font-bold mb-1">Audit Logs</h3>
+              <p className="text-gray-400 text-sm">View admin activity logs</p>
+            </div>
+            <ArrowRight size={24} className="text-admin-accent" />
+          </div>
+        </Link>
       </div>
     </div>
   );
