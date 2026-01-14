@@ -94,7 +94,7 @@ export default function App() {
       <div className="min-h-screen bg-admin-dark flex items-center justify-center text-white">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Configuration Error</h1>
-          <p className="text-gray-400">VITE_CLERK_PUBLISHABLE_KEY is not set. Please check your .env.local file.</p>
+          <p className="text-gray-400">NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is not set. Please check your Vercel environment variables.</p>
         </div>
       </div>
     );
