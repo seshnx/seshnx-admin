@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth as useClerkAuth } from '@clerk/clerk-react';
-import { queryOne } from '../config/neon.js';
 
 const AuthContext = createContext();
 
@@ -39,22 +38,29 @@ export function AuthProvider({ children }) {
         const jwtToken = await getToken();
         setToken(jwtToken);
 
-        // Fetch user from Neon database to check admin status
-        const adminUser = await queryOne(
-          `SELECT
-            id,
-            email,
-            username,
-            first_name,
-            last_name,
-            account_types,
-            active_role,
-            profile_photo_url,
-            deleted_at
-          FROM clerk_users
-          WHERE id = $1`,
-          [userId]
-        );
+        // Fetch admin user info from API
+        const response = await fetch('/api/admin/me', {
+          headers: {
+            'Authorization': `Bearer ${jwtToken}`
+          }
+        });
+
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            // Not an admin or unauthorized
+            console.warn('User is not an admin or unauthorized');
+            setCurrentUser(null);
+            setIsAdmin(false);
+            setIsSuperAdmin(false);
+            setUserProfile(null);
+            setLoading(false);
+            return;
+          }
+          throw new Error(`Failed to fetch admin info: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const adminUser = data.user;
 
         if (!adminUser) {
           console.warn('User not found in database:', userId);
@@ -66,31 +72,19 @@ export function AuthProvider({ children }) {
           return;
         }
 
-        // Check if user is banned
-        if (adminUser.deleted_at) {
-          console.warn('User account is banned:', userId);
-          // Sign out from Clerk
-          await clerkAuth.signOut();
-          setCurrentUser(null);
-          setIsAdmin(false);
-          setIsSuperAdmin(false);
-          setUserProfile(null);
-          setLoading(false);
-          return;
-        }
-
-        // Check if user has admin role
-        const accountTypes = adminUser.account_types || [];
-        const isAdmin = accountTypes.includes('GAdmin') || accountTypes.includes('SuperAdmin');
-        const isSuperAdmin = accountTypes.includes('SuperAdmin');
-
-        setCurrentUser(adminUser);
-        setIsAdmin(isAdmin);
-        setIsSuperAdmin(isSuperAdmin);
+        setCurrentUser({
+          id: adminUser.id,
+          email: adminUser.email,
+          username: adminUser.username,
+          firstName: adminUser.firstName,
+          lastName: adminUser.lastName,
+        });
+        setIsAdmin(true);
+        setIsSuperAdmin(adminUser.isSuperAdmin);
         setUserProfile({
-          accountTypes,
-          activeRole: adminUser.active_role,
-          source: 'neon-database'
+          accountTypes: adminUser.roles,
+          activeRole: adminUser.activeRole,
+          source: 'api'
         });
 
         setLoading(false);
@@ -111,6 +105,10 @@ export function AuthProvider({ children }) {
     try {
       await clerkAuth.signOut();
       setToken(null);
+      setCurrentUser(null);
+      setIsAdmin(false);
+      setIsSuperAdmin(false);
+      setUserProfile(null);
     } catch (error) {
       console.error('Error signing out:', error);
     }
