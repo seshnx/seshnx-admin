@@ -16,7 +16,8 @@ import UserDetail from './pages/UserDetail';
 import SchoolDetail from './pages/SchoolDetail';
 import SupportDesk from './pages/SupportDesk';
 import ContentManager from './pages/ContentManager';
-import { clerkPublishableKey } from './config/clerk';
+// Get Clerk publishable key from environment variable
+const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 const Sidebar = () => {
   const { currentUser, isSuperAdmin, logout } = useAuth();
