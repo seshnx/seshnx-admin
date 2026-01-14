@@ -7,7 +7,7 @@ export function useAuth() { return useContext(AuthContext); }
 
 export function AuthProvider({ children }) {
   const clerkAuth = useClerkAuth();
-  const { isLoaded, isSignedIn, userId, getToken } = clerkAuth;
+  const { isLoaded, isSignedIn, userId } = clerkAuth;
 
   const [currentUser, setCurrentUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -35,7 +35,7 @@ export function AuthProvider({ children }) {
 
       try {
         // Get JWT token for API calls
-        const jwtToken = await getToken();
+        const jwtToken = await clerkAuth.getToken();
         setToken(jwtToken);
 
         // Fetch admin user info from API
@@ -99,7 +99,7 @@ export function AuthProvider({ children }) {
     };
 
     checkAdminStatus();
-  }, [isLoaded, isSignedIn, userId, getToken]);
+  }, [isLoaded, isSignedIn, userId, clerkAuth]);
 
   const logout = async () => {
     try {
