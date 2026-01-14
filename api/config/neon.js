@@ -1,9 +1,10 @@
 import { neon } from '@neondatabase/serverless';
 
-const neonUrl = import.meta.env.VITE_NEON_DATABASE_URL;
+// Use DATABASE_URL from Neon integration (auto-created by Vercel)
+const neonUrl = process.env.DATABASE_URL;
 
 if (!neonUrl) {
-  console.error('❌ Neon: VITE_NEON_DATABASE_URL is not set');
+  console.error('❌ Neon: DATABASE_URL is not set in environment variables');
 }
 
 export const neonClient = neonUrl ? neon(neonUrl, { fetch: fetch }) : null;
@@ -16,7 +17,7 @@ export const neonClient = neonUrl ? neon(neonUrl, { fetch: fetch }) : null;
  */
 export async function query(sql, params = []) {
   if (!neonClient) {
-    throw new Error('Neon client is not configured. Please check VITE_NEON_DATABASE_URL environment variable.');
+    throw new Error('Neon client is not configured. Please check DATABASE_URL environment variable.');
   }
 
   try {

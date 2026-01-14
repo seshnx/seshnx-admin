@@ -1,4 +1,4 @@
-import { query } from '../../src/config/neon.js';
+import { query } from '../config/neon.js';
 
 /**
  * Log an admin action to the audit log table

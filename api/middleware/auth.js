@@ -1,5 +1,5 @@
 import { Clerk } from '@clerk/clerk-sdk-node';
-import { queryOne } from '../../src/config/neon.js';
+import { queryOne } from '../config/neon.js';
 
 // Initialize Clerk with secret key from environment
 const clerkSecretKey = process.env.CLERK_SECRET_KEY;

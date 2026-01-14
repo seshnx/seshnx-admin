@@ -1,4 +1,4 @@
-import { query, queryOne } from '../../src/config/neon.js';
+import { query, queryOne } from '../config/neon.js';
 
 // ============================================================================
 // USER MANAGEMENT QUERIES
