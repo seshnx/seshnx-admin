@@ -1,4 +1,4 @@
-import { Clerk } from '@clerk/clerk-sdk-node';
+import { verifyToken } from '@clerk/clerk-sdk-node';
 import { queryOne } from '../config/neon.js';
 
 // Initialize Clerk with secret key from environment
@@ -6,27 +6,8 @@ const clerkSecretKey = process.env.CLERK_SECRET_KEY;
 
 if (!clerkSecretKey) {
   console.warn('⚠️  Clerk: CLERK_SECRET_KEY is not set in environment variables');
-}
-
-const clerk = clerkSecretKey ? new Clerk({ secretKey: clerkSecretKey }) : null;
-
-/**
- * Verify a Clerk JWT token
- * @param {string} token - JWT token
- * @returns {Promise<Object>} Decoded token payload
- */
-async function verifyToken(token) {
-  if (!clerk) {
-    throw new Error('Clerk client is not configured - missing CLERK_SECRET_KEY');
-  }
-
-  try {
-    const payload = await clerk.verifyToken(token);
-    return payload;
-  } catch (error) {
-    console.error('Clerk token verification failed:', error);
-    throw new Error('Invalid or expired token');
-  }
+} else {
+  console.log('✅ Clerk: CLERK_SECRET_KEY is configured');
 }
 
 /**
@@ -50,8 +31,9 @@ export async function verifyAdminAuth(req, res) {
     // Verify Clerk token
     let payload;
     try {
-      payload = await verifyToken(token);
+      payload = await verifyToken(token, { secretKey: clerkSecretKey });
     } catch (error) {
+      console.error('Clerk token verification failed:', error);
       return res.status(401).json({
         error: 'Unauthorized: Invalid or expired token',
         code: 'INVALID_TOKEN'
