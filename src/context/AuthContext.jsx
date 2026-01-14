@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 
 const AuthContext = createContext();
@@ -15,20 +15,24 @@ export function AuthProvider({ children }) {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
-  const [initialized, setInitialized] = useState(false);
+
+  // Use ref to prevent duplicate checks
+  const hasChecked = useRef(false);
 
   useEffect(() => {
-    // Only check once when Clerk is loaded
-    if (!isLoaded || initialized) {
+    // Prevent multiple checks even if component re-renders
+    if (hasChecked.current) {
       return;
     }
 
     const checkAdminStatus = async () => {
+      // Mark as checked immediately to prevent duplicates
+      hasChecked.current = true;
+
       try {
         if (!isSignedIn || !userId) {
           // User not logged in, don't check admin status
           setLoading(false);
-          setInitialized(true);
           return;
         }
 
@@ -65,13 +69,11 @@ export function AuthProvider({ children }) {
           }
         } else {
           // Handle all non-200 responses gracefully
-          console.warn(`API returned status ${response.status}:`, response.status);
+          console.warn(`API returned status ${response.status}`);
 
           if (response.status === 401 || response.status === 403) {
-            // Not an admin, that's ok - just don't set admin user
             console.log('User is not an admin');
           } else {
-            // Server error (500) or other - log it but don't crash
             console.error('Server error checking admin status');
           }
         }
@@ -79,14 +81,16 @@ export function AuthProvider({ children }) {
         // Catch any network errors or other exceptions
         console.error('Error checking admin status:', error);
       } finally {
-        // Always set these to stop the loop
+        // Always stop loading
         setLoading(false);
-        setInitialized(true);
       }
     };
 
-    checkAdminStatus();
-  }, [isLoaded, isSignedIn, userId, initialized]);
+    // Only run when Clerk is loaded
+    if (isLoaded) {
+      checkAdminStatus();
+    }
+  }, [isLoaded]); // Only depend on isLoaded, not isSignedIn or userId
 
   const logout = async () => {
     try {
@@ -96,7 +100,7 @@ export function AuthProvider({ children }) {
       setIsAdmin(false);
       setIsSuperAdmin(false);
       setUserProfile(null);
-      setInitialized(false);
+      hasChecked.current = false;
       setLoading(false);
     } catch (error) {
       console.error('Error signing out:', error);
