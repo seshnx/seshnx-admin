@@ -24,14 +24,14 @@ export function AuthProvider({ children }) {
     }
 
     const checkAdminStatus = async () => {
-      if (!isSignedIn || !userId) {
-        // User not logged in, don't check admin status
-        setLoading(false);
-        setInitialized(true);
-        return;
-      }
-
       try {
+        if (!isSignedIn || !userId) {
+          // User not logged in, don't check admin status
+          setLoading(false);
+          setInitialized(true);
+          return;
+        }
+
         // Get JWT token
         const jwtToken = await clerkAuth.getToken();
         setToken(jwtToken);
@@ -63,13 +63,23 @@ export function AuthProvider({ children }) {
               source: 'api'
             });
           }
-        } else if (response.status === 401 || response.status === 403) {
-          // Not an admin, that's ok
-          console.log('User is not an admin');
+        } else {
+          // Handle all non-200 responses gracefully
+          console.warn(`API returned status ${response.status}:`, response.status);
+
+          if (response.status === 401 || response.status === 403) {
+            // Not an admin, that's ok - just don't set admin user
+            console.log('User is not an admin');
+          } else {
+            // Server error (500) or other - log it but don't crash
+            console.error('Server error checking admin status');
+          }
         }
       } catch (error) {
+        // Catch any network errors or other exceptions
         console.error('Error checking admin status:', error);
       } finally {
+        // Always set these to stop the loop
         setLoading(false);
         setInitialized(true);
       }
