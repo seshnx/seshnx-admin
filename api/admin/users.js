@@ -1,6 +1,7 @@
-import { verifyAdmin, getDb } from './initAdmin.js';
-
-const APP_ID = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'seshnx-db';
+import { verifyAdminAuth } from '../middleware/auth.js';
+import { checkPermission } from '../middleware/rbac.js';
+import * as neonQueries from '../utils/neonQueries.js';
+import { logAuditAction, extractAdminInfo, AuditActions } from '../utils/auditLogger.js';
 
 export default async function handler(req, res) {
   // Enable CORS
@@ -13,120 +14,138 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Verify admin authorization
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized: No token provided' });
-    }
+    // Verify admin authentication
+    const authError = await verifyAdminAuth(req, res);
+    if (authError) return authError;
 
-    const adminUser = await verifyAdmin(token);
-    if (!adminUser) {
-      return res.status(403).json({ error: 'Forbidden: Not an administrator' });
-    }
-
-    const db = getDb();
-
+    // GET: List users
     if (req.method === 'GET') {
-      // Fetch users
+      const { limit, offset, search, role, status } = req.query;
+
       try {
-        // Try public profiles collection first
-        const profilesRef = db.collection(`artifacts/${APP_ID}/public/data/profiles`);
-        const snapshot = await profilesRef.limit(100).get();
-        
-        const users = snapshot.docs.map(doc => ({
-          id: doc.id,
-          profilePath: `artifacts/${APP_ID}/users/${doc.id}/profiles/main`,
-          ...doc.data()
-        }));
+        const users = await neonQueries.getAllUsers({
+          limit: parseInt(limit) || 100,
+          offset: parseInt(offset) || 0,
+          search: search || null,
+          role: role || null,
+          status: status || 'active'
+        });
 
         return res.status(200).json({ users });
       } catch (error) {
-        // Fallback: Use collectionGroup query
-        const profilesRef = db.collectionGroup('profiles');
-        const snapshot = await profilesRef
-          .where('__name__', '==', 'main')
-          .limit(100)
-          .get();
-
-        const users = [];
-        snapshot.docs.forEach(doc => {
-          const pathParts = doc.ref.path.split('/');
-          const userIdIndex = pathParts.indexOf('users');
-          if (userIdIndex !== -1 && userIdIndex < pathParts.length - 1) {
-            users.push({
-              id: pathParts[userIdIndex + 1],
-              profilePath: doc.ref.path,
-              ...doc.data()
-            });
-          }
-        });
-
-        return res.status(200).json({ users });
+        console.error('Error fetching users:', error);
+        return res.status(500).json({ error: 'Failed to fetch users' });
       }
     }
 
+    // PUT/PATCH: Update user
     if (req.method === 'PUT' || req.method === 'PATCH') {
-      const { userId, profilePath, role, action, schoolId } = req.body;
+      const { userId, role, action, schoolId } = req.body;
 
       // Handle school linking
       if (schoolId !== undefined) {
-        if (!userId || !profilePath) {
-          return res.status(400).json({ error: 'Missing required fields: userId, profilePath' });
+        // Check permissions
+        const hasPermission = req.admin.roles.some(r =>
+          r === 'SuperAdmin' || r === 'GAdmin' || r === 'EDUAdmin'
+        );
+
+        if (!hasPermission) {
+          return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
         }
 
-        const profileRef = db.doc(profilePath);
-        await profileRef.update({ schoolId: schoolId || null });
+        try {
+          await neonQueries.enrollStudent(userId, schoolId);
 
-        return res.status(200).json({ 
-          success: true,
-          userId,
-          schoolId: schoolId || null
-        });
+          // Log action
+          await logAuditAction(
+            extractAdminInfo(req),
+            schoolId ? AuditActions.STUDENT_ENROLLED : AuditActions.STUDENT_REMOVED,
+            { type: 'student', id: userId }
+          );
+
+          return res.status(200).json({
+            success: true,
+            userId,
+            schoolId: schoolId || null
+          });
+        } catch (error) {
+          console.error('Error updating school:', error);
+          return res.status(500).json({ error: 'Failed to update school assignment' });
+        }
       }
 
       // Handle role updates
-      if (!userId || !profilePath || !role) {
-        return res.status(400).json({ error: 'Missing required fields: userId, profilePath, role' });
+      if (!userId || !role) {
+        return res.status(400).json({ error: 'Missing required fields: userId, role' });
       }
 
       // Only SuperAdmin can grant/revoke SuperAdmin role
-      if (role === 'SuperAdmin' && !adminUser.isSuperAdmin) {
+      if (role === 'SuperAdmin' && !req.admin.isSuperAdmin) {
         return res.status(403).json({ error: 'Forbidden: Only SuperAdmins can manage SuperAdmin role' });
       }
 
-      const profileRef = db.doc(profilePath);
-      const profileDoc = await profileRef.get();
-
-      if (!profileDoc.exists) {
-        return res.status(404).json({ error: 'User profile not found' });
-      }
-
-      const currentRoles = profileDoc.data().accountTypes || [];
-      let newRoles;
-
-      if (action === 'grant' || !action) {
-        newRoles = currentRoles.includes(role) ? currentRoles : [...currentRoles, role];
-      } else {
-        // Revoke
-        if (role === 'SuperAdmin' && userId === adminUser.uid) {
-          // Prevent self-demotion unless GAdmin remains
-          if (!currentRoles.includes('GAdmin')) {
-            newRoles = currentRoles.filter(r => r !== 'SuperAdmin').concat('GAdmin');
-          } else {
-            newRoles = currentRoles.filter(r => r !== 'SuperAdmin');
-          }
-        } else {
-          newRoles = currentRoles.filter(r => r !== role);
+      // Prevent self-demotion from SuperAdmin unless keeping GAdmin
+      if (role === 'SuperAdmin' && userId === req.admin.id && action === 'revoke') {
+        const user = await neonQueries.getUserById(userId);
+        if (!user.account_types.includes('GAdmin')) {
+          return res.status(403).json({ error: 'Forbidden: Cannot remove your only admin role' });
         }
       }
 
-      await profileRef.update({ accountTypes: newRoles });
+      try {
+        const updatedUser = await neonQueries.updateUserRole(userId, role, action || 'grant');
 
-      return res.status(200).json({ 
-        success: true,
-        userId,
-        accountTypes: newRoles
-      });
+        // Log action
+        await logAuditAction(
+          extractAdminInfo(req),
+          action === 'revoke' ? AuditActions.USER_ROLE_REVOKED : AuditActions.USER_ROLE_GRANTED,
+          { type: 'user', id: userId, oldValues: { role }, newValues: { role, action } }
+        );
+
+        return res.status(200).json({
+          success: true,
+          userId,
+          accountTypes: updatedUser.account_types
+        });
+      } catch (error) {
+        console.error('Error updating user role:', error);
+        return res.status(500).json({ error: 'Failed to update user role' });
+      }
+    }
+
+    // DELETE: Delete user
+    if (req.method === 'DELETE') {
+      const { userId } = req.query;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'Missing userId parameter' });
+      }
+
+      // Prevent self-deletion
+      if (userId === req.admin.id) {
+        return res.status(403).json({ error: 'Forbidden: Cannot delete your own account' });
+      }
+
+      // Only SuperAdmin can delete users
+      if (!req.admin.isSuperAdmin) {
+        return res.status(403).json({ error: 'Forbidden: Only SuperAdmins can delete users' });
+      }
+
+      try {
+        await neonQueries.hardDeleteUser(userId);
+
+        // Log action
+        await logAuditAction(
+          extractAdminInfo(req),
+          AuditActions.USER_DELETED,
+          { type: 'user', id: userId }
+        );
+
+        return res.status(200).json({ success: true, userId });
+      } catch (error) {
+        console.error('Error deleting user:', error);
+        return res.status(500).json({ error: 'Failed to delete user' });
+      }
     }
 
     return res.status(405).json({ error: 'Method not allowed' });

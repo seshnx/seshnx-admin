@@ -11,10 +11,14 @@
     "push-env:vercel": "node scripts/push-env-to-vercel.js"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.0.0",
+    "@clerk/clerk-sdk-node": "^5.0.0",
+    "@neondatabase/serverless": "^0.9.5",
     "date-fns": "^3.6.0",
     "firebase": "^10.12.3",
     "firebase-admin": "^13.6.0",
     "lucide-react": "^0.395.0",
+    "pg": "^8.11.0",
     "qrcode": "^1.5.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

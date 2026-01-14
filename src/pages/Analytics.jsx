@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, Users, GraduationCap, TrendingUp, Activity, Clock } from 'lucide-react';
-import { statsAPI } from '../utils/api';
+import { BarChart3, Users, GraduationCap, TrendingUp, Activity, Clock, AlertTriangle, MessageSquare } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import RefreshButton from '../components/RefreshButton';
 import RealtimeIndicator from '../components/RealtimeIndicator';
 import {
@@ -22,18 +22,26 @@ import {
 } from 'recharts';
 
 export default function Analytics() {
+  const { token } = useAuth();
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalSchools: 0,
     activeUsers: 0,
     totalPosts: 0,
+    totalComments: 0,
+    flaggedContent: 0,
     totalMarketItems: 0,
-    totalBookings: 0
+    totalBookings: 0,
+    totalStudents: 0,
+    totalEnrollments: 0,
+    newUsersThisWeek: 0,
+    newUsersThisMonth: 0
   });
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('7d'); // 7d, 30d, 90d, all
-  const [chartData, setChartData] = useState([]);
-  const [activityData, setActivityData] = useState([]);
+  const [userGrowthData, setUserGrowthData] = useState([]);
+  const [contentData, setContentData] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [lastUpdate, setLastUpdate] = useState(null);
 
   useEffect(() => {
@@ -43,21 +51,66 @@ export default function Analytics() {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const result = await statsAPI.fetchStats();
-      const newStats = {
-        totalUsers: result.stats.totalUsers || 0,
-        totalSchools: result.stats.totalSchools || 0,
-        activeUsers: result.stats.activeUsers || 0,
-        totalPosts: result.stats.totalPosts || 0,
-        totalMarketItems: result.stats.totalMarketItems || 0,
-        totalBookings: result.stats.totalBookings || 0
-      };
-      setStats(newStats);
+      // Fetch overview stats
+      const overviewResponse = await fetch('/api/admin/analytics/overview', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      // Fetch user analytics with time range
+      const userGrowthDays = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : timeRange === '90d' ? 90 : 365;
+      const usersResponse = await fetch(`/api/admin/analytics/users?days=${userGrowthDays}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      // Fetch content stats
+      const contentResponse = await fetch('/api/admin/analytics/content', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      // Fetch school stats
+      const schoolsResponse = await fetch('/api/admin/analytics/schools', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      // Fetch recent audit logs
+      const auditResponse = await fetch('/api/admin/settings/audit-log?limit=10', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (overviewResponse.ok) {
+        const overviewData = await overviewResponse.json();
+        setStats({
+          totalUsers: overviewData.totalUsers || 0,
+          totalSchools: overviewData.totalSchools || 0,
+          activeUsers: overviewData.activeUsers || 0,
+          totalPosts: overviewData.totalPosts || 0,
+          totalComments: overviewData.totalComments || 0,
+          flaggedContent: overviewData.flaggedContent || 0,
+          totalMarketItems: overviewData.totalMarketItems || 0,
+          totalBookings: overviewData.totalBookings || 0,
+          totalStudents: overviewData.totalStudents || 0,
+          totalEnrollments: overviewData.totalEnrollments || 0,
+          newUsersThisWeek: overviewData.newUsersThisWeek || 0,
+          newUsersThisMonth: overviewData.newUsersThisMonth || 0
+        });
+      }
+
+      if (usersResponse.ok) {
+        const usersData = await usersResponse.json();
+        setUserGrowthData(usersData.growth || []);
+      }
+
+      if (contentResponse.ok) {
+        const contentData = await contentResponse.json();
+        setContentData(contentData.breakdown || []);
+      }
+
+      if (auditResponse.ok) {
+        const auditData = await auditResponse.json();
+        setAuditLogs(auditData.logs || []);
+      }
+
       setLastUpdate(Date.now());
-      
-      // Generate chart data based on time range
-      generateChartData(newStats, timeRange);
-      generateActivityData(newStats);
     } catch (error) {
       console.error('Error fetching analytics:', error);
     } finally {
@@ -65,56 +118,42 @@ export default function Analytics() {
     }
   };
 
-
-  const generateChartData = (currentStats, range) => {
-    const days = range === '7d' ? 7 : range === '30d' ? 30 : range === '90d' ? 90 : 365;
-    const data = [];
-    const today = new Date();
-    
-    // Generate historical data with gradual growth
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      
-      // Simulate gradual growth (70-100% of current value)
-      const progress = (days - i) / days;
-      const variation = 0.7 + (progress * 0.3);
-      
-      data.push({
-        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        users: Math.round(currentStats.totalUsers * variation * (0.95 + Math.random() * 0.1)),
-        posts: Math.round(currentStats.totalPosts * variation * (0.95 + Math.random() * 0.1)),
-        bookings: Math.round(currentStats.totalBookings * variation * (0.95 + Math.random() * 0.1))
-      });
-    }
-    
-    setChartData(data);
-  };
-
-  const generateActivityData = (currentStats) => {
-    setActivityData([
-      { name: 'Posts', value: currentStats.totalPosts, color: '#60a5fa' },
-      { name: 'Market Items', value: currentStats.totalMarketItems, color: '#34d399' },
-      { name: 'Bookings', value: currentStats.totalBookings, color: '#fbbf24' }
-    ]);
-  };
-
-
-  const StatCard = ({ title, value, icon, trend, subtitle }) => (
+  const StatCard = ({ title, value, icon, trend, subtitle, color }) => (
     <div className="bg-admin-card border border-gray-800 rounded-lg p-6">
       <div className="flex items-center justify-between mb-2">
         <div className="text-gray-400 text-sm font-medium">{title}</div>
-        <div className="text-admin-accent">{icon}</div>
+        <div className={color ? color : 'text-admin-accent'}>{icon}</div>
       </div>
       <div className="text-3xl font-bold text-white mb-1">{loading ? '...' : value.toLocaleString()}</div>
       {subtitle && <div className="text-xs text-gray-500">{subtitle}</div>}
-      {trend && (
-        <div className={`text-xs mt-2 flex items-center gap-1 ${trend > 0 ? 'text-green-400' : 'text-red-400'}`}>
-          <TrendingUp size={12} /> {trend > 0 ? '+' : ''}{trend}% from last period
+      {trend !== undefined && (
+        <div className={`text-xs mt-2 flex items-center gap-1 ${trend > 0 ? 'text-green-400' : trend < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+          <TrendingUp size={12} /> {trend > 0 ? '+' : trend < 0 ? '' : '±'}{Math.abs(trend)}% from last period
         </div>
       )}
     </div>
   );
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleString();
+  };
+
+  const getActionColor = (action) => {
+    const colors = {
+      'USER_ROLE_GRANT': 'text-green-400',
+      'USER_ROLE_REVOKE': 'text-orange-400',
+      'USER_BAN': 'text-red-400',
+      'USER_UNBAN': 'text-green-400',
+      'USER_DELETE': 'text-red-600',
+      'CONTENT_DELETE': 'text-red-400',
+      'CONTENT_APPROVE': 'text-green-400',
+      'SCHOOL_CREATE': 'text-blue-400',
+      'SCHOOL_UPDATE': 'text-yellow-400',
+      'SCHOOL_DELETE': 'text-red-400',
+      'SETTING_UPDATE': 'text-purple-400'
+    };
+    return colors[action] || 'text-gray-400';
+  };
 
   return (
     <div className="space-y-6">
@@ -152,15 +191,15 @@ export default function Analytics() {
           title="Total Users"
           value={stats.totalUsers}
           icon={<Users size={24} />}
-          trend={5.2}
-          subtitle="Registered platform users"
+          trend={stats.newUsersThisWeek > 0 ? ((stats.newUsersThisWeek / stats.totalUsers) * 100).toFixed(1) : 0}
+          subtitle={`${stats.newUsersThisWeek} new this week`}
         />
         <StatCard
           title="Total Schools"
           value={stats.totalSchools}
           icon={<GraduationCap size={24} />}
           trend={2.1}
-          subtitle="Active schools on platform"
+          subtitle={`${stats.totalStudents} enrolled students`}
         />
         <StatCard
           title="Active Users"
@@ -174,14 +213,15 @@ export default function Analytics() {
           value={stats.totalPosts}
           icon={<BarChart3 size={24} />}
           trend={12.5}
-          subtitle="User-generated content"
+          subtitle={`${stats.totalComments} comments`}
         />
         <StatCard
-          title="Market Items"
-          value={stats.totalMarketItems}
-          icon={<TrendingUp size={24} />}
-          trend={8.7}
-          subtitle="Items in marketplace"
+          title="Flagged Content"
+          value={stats.flaggedContent}
+          icon={<AlertTriangle size={24} />}
+          color="text-yellow-400"
+          trend={-5.2}
+          subtitle="Requires review"
         />
         <StatCard
           title="Bookings"
@@ -197,7 +237,7 @@ export default function Analytics() {
         {/* User Growth Chart */}
         <div className="bg-admin-card border border-gray-800 rounded-lg p-6">
           <h3 className="text-white font-bold mb-4">User Growth Over Time</h3>
-          {loading || chartData.length === 0 ? (
+          {loading || userGrowthData.length === 0 ? (
             <div className="h-64 flex items-center justify-center text-gray-500">
               <div className="text-center">
                 <BarChart3 size={48} className="mx-auto mb-2 opacity-50" />
@@ -206,7 +246,7 @@ export default function Analytics() {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={chartData}>
+              <AreaChart data={userGrowthData}>
                 <defs>
                   <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -214,42 +254,43 @@ export default function Analytics() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis 
-                  dataKey="date" 
+                <XAxis
+                  dataKey="date"
                   stroke="#9ca3af"
                   style={{ fontSize: '12px' }}
                   tick={{ fill: '#9ca3af' }}
                 />
-                <YAxis 
+                <YAxis
                   stroke="#9ca3af"
                   style={{ fontSize: '12px' }}
                   tick={{ fill: '#9ca3af' }}
                 />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#1f2937', 
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#1f2937',
                     border: '1px solid #374151',
                     borderRadius: '8px',
                     color: '#fff'
                   }}
                 />
-                <Area 
-                  type="monotone" 
-                  dataKey="users" 
-                  stroke="#3b82f6" 
-                  fillOpacity={1} 
+                <Area
+                  type="monotone"
+                  dataKey="count"
+                  stroke="#3b82f6"
+                  fillOpacity={1}
                   fill="url(#colorUsers)"
                   strokeWidth={2}
+                  name="Users"
                 />
               </AreaChart>
             </ResponsiveContainer>
           )}
         </div>
 
-        {/* Activity Distribution */}
+        {/* Content Distribution */}
         <div className="bg-admin-card border border-gray-800 rounded-lg p-6">
           <h3 className="text-white font-bold mb-4">Content Activity Distribution</h3>
-          {loading || activityData.length === 0 ? (
+          {loading || contentData.length === 0 ? (
             <div className="h-64 flex items-center justify-center text-gray-500">
               <div className="text-center">
                 <Activity size={48} className="mx-auto mb-2 opacity-50" />
@@ -260,7 +301,7 @@ export default function Analytics() {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={activityData}
+                  data={contentData}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -269,13 +310,13 @@ export default function Analytics() {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {activityData.map((entry, index) => (
+                  {contentData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#1f2937', 
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#1f2937',
                     border: '1px solid #374151',
                     borderRadius: '8px',
                     color: '#fff'
@@ -290,7 +331,7 @@ export default function Analytics() {
       {/* Activity Timeline */}
       <div className="bg-admin-card border border-gray-800 rounded-lg p-6">
         <h3 className="text-white font-bold mb-4">Platform Activity Timeline</h3>
-        {loading || chartData.length === 0 ? (
+        {loading || userGrowthData.length === 0 ? (
           <div className="h-64 flex items-center justify-center text-gray-500">
             <div className="text-center">
               <Activity size={48} className="mx-auto mb-2 opacity-50" />
@@ -299,46 +340,38 @@ export default function Analytics() {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={350}>
-            <LineChart data={chartData}>
+            <LineChart data={userGrowthData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis 
-                dataKey="date" 
+              <XAxis
+                dataKey="date"
                 stroke="#9ca3af"
                 style={{ fontSize: '12px' }}
                 tick={{ fill: '#9ca3af' }}
               />
-              <YAxis 
+              <YAxis
                 stroke="#9ca3af"
                 style={{ fontSize: '12px' }}
                 tick={{ fill: '#9ca3af' }}
               />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#1f2937', 
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#1f2937',
                   border: '1px solid #374151',
                   borderRadius: '8px',
                   color: '#fff'
                 }}
               />
-              <Legend 
+              <Legend
                 wrapperStyle={{ color: '#fff' }}
                 iconType="line"
               />
-              <Line 
-                type="monotone" 
-                dataKey="posts" 
-                stroke="#60a5fa" 
+              <Line
+                type="monotone"
+                dataKey="count"
+                stroke="#60a5fa"
                 strokeWidth={2}
                 dot={{ fill: '#60a5fa', r: 3 }}
-                name="Posts"
-              />
-              <Line 
-                type="monotone" 
-                dataKey="bookings" 
-                stroke="#fbbf24" 
-                strokeWidth={2}
-                dot={{ fill: '#fbbf24', r: 3 }}
-                name="Bookings"
+                name="New Users"
               />
             </LineChart>
           </ResponsiveContainer>
@@ -348,7 +381,7 @@ export default function Analytics() {
       {/* Content Breakdown Bar Chart */}
       <div className="bg-admin-card border border-gray-800 rounded-lg p-6">
         <h3 className="text-white font-bold mb-4">Content Breakdown</h3>
-        {loading ? (
+        {loading || contentData.length === 0 ? (
           <div className="h-64 flex items-center justify-center text-gray-500">
             <div className="text-center">
               <BarChart3 size={48} className="mx-auto mb-2 opacity-50" />
@@ -357,29 +390,29 @@ export default function Analytics() {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={activityData}>
+            <BarChart data={contentData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis 
-                dataKey="name" 
+              <XAxis
+                dataKey="name"
                 stroke="#9ca3af"
                 style={{ fontSize: '12px' }}
                 tick={{ fill: '#9ca3af' }}
               />
-              <YAxis 
+              <YAxis
                 stroke="#9ca3af"
                 style={{ fontSize: '12px' }}
                 tick={{ fill: '#9ca3af' }}
               />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#1f2937', 
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#1f2937',
                   border: '1px solid #374151',
                   borderRadius: '8px',
                   color: '#fff'
                 }}
               />
               <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                {activityData.map((entry, index) => (
+                {contentData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Bar>
@@ -388,14 +421,45 @@ export default function Analytics() {
         )}
       </div>
 
-      {/* Recent Activity */}
+      {/* Recent Admin Activity */}
       <div className="bg-admin-card border border-gray-800 rounded-lg p-6">
-        <h3 className="text-white font-bold mb-4">Recent Platform Activity</h3>
-        <div className="text-gray-400 text-sm">
-          Activity logs and monitoring features coming soon. This will show recent admin actions, user registrations, school creations, etc.
-        </div>
+        <h3 className="text-white font-bold mb-4">Recent Admin Activity</h3>
+        {loading ? (
+          <div className="h-64 flex items-center justify-center text-gray-500">
+            <div className="text-center">
+              <MessageSquare size={48} className="mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Loading activity logs...</p>
+            </div>
+          </div>
+        ) : auditLogs.length === 0 ? (
+          <div className="text-gray-500 text-sm py-8 text-center">
+            No recent admin activity
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {auditLogs.map((log) => (
+              <div key={log.id} className="flex items-start gap-3 p-3 bg-admin-dark/30 rounded border border-gray-800">
+                <div className={`w-2 h-2 rounded-full mt-2 ${log.action.includes('DELETE') || log.action.includes('BAN') ? 'bg-red-500' : log.action.includes('CREATE') || log.action.includes('GRANT') ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-white font-medium text-sm">{log.admin_email}</span>
+                    <span className={`text-xs font-mono ${getActionColor(log.action)}`}>{log.action.replace(/_/g, ' ')}</span>
+                    {log.target_type && (
+                      <span className="text-xs text-gray-500">
+                        {log.target_type}{log.target_id && `: ${log.target_id.slice(0, 8)}...`}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {formatDate(log.created_at)}
+                    {log.reason && <span className="ml-2 text-gray-400">Reason: {log.reason}</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
-

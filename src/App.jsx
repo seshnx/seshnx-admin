@@ -1,9 +1,9 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { ClerkProvider } from '@clerk/clerk-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import EnrollMfa from './pages/EnrollMfa';
 import DataGrid from './pages/DataGrid';
 import UserManager from './pages/UserManager';
 import InviteManager from './pages/InviteManager';
@@ -15,11 +15,11 @@ import AuditLogs from './pages/AuditLogs';
 import UserDetail from './pages/UserDetail';
 import SchoolDetail from './pages/SchoolDetail';
 import SupportDesk from './pages/SupportDesk';
-import { signOut } from 'firebase/auth';
-import { auth } from './firebase';
+import ContentManager from './pages/ContentManager';
+import { clerkPublishableKey } from './config/clerk';
 
 const Sidebar = () => {
-  const { currentUser, isSuperAdmin } = useAuth();
+  const { currentUser, isSuperAdmin, logout } = useAuth();
   return (
     <div className="w-16 lg:w-64 bg-admin-dark border-r border-gray-800 flex flex-col h-screen">
       <div className="p-4 h-16 flex items-center justify-center lg:justify-start gap-3 border-b border-gray-800 text-admin-accent font-black tracking-tighter text-xl">
@@ -29,6 +29,7 @@ const Sidebar = () => {
       <nav className="flex-1 py-4 space-y-1">
         <NavItem to="/" icon={<LayoutDashboard size={20}/>} label="Overview" />
         <NavItem to="/users" icon={<Users size={20}/>} label="Users" />
+        <NavItem to="/content" icon={<FileText size={20}/>} label="Content" />
         <NavItem to="/schools" icon={<GraduationCap size={20}/>} label="Schools" />
         <NavItem to="/analytics" icon={<BarChart3 size={20}/>} label="Analytics" />
         <NavItem to="/invites" icon={<Ticket size={20}/>} label="Access Keys" />
@@ -41,7 +42,7 @@ const Sidebar = () => {
           {currentUser?.email}
           {isSuperAdmin && <Crown size={12} className="text-yellow-400" title="Super Admin" />}
         </div>
-        <button onClick={() => signOut(auth)} className="w-full flex items-center gap-3 px-4 py-2 text-red-500 hover:bg-red-900/20 rounded transition-colors text-sm">
+        <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-2 text-red-500 hover:bg-red-900/20 rounded transition-colors text-sm">
           <LogOut size={18} /> <span className="hidden lg:block">Sign Out</span>
         </button>
       </div>
@@ -87,26 +88,39 @@ const ProtectedRoute = ({ children }) => {
 };
 
 export default function App() {
+  if (!clerkPublishableKey) {
+    return (
+      <div className="min-h-screen bg-admin-dark flex items-center justify-center text-white">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Configuration Error</h1>
+          <p className="text-gray-400">VITE_CLERK_PUBLISHABLE_KEY is not set. Please check your .env.local file.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/enroll-mfa" element={<ProtectedRoute><EnrollMfa /></ProtectedRoute>} />
-          <Route path="/" element={<ProtectedRoute><DataGrid /></ProtectedRoute>} />
-          <Route path="/users" element={<ProtectedRoute><UserManager /></ProtectedRoute>} />
-          <Route path="/users/:userId" element={<ProtectedRoute><UserDetail /></ProtectedRoute>} />
-          <Route path="/schools" element={<ProtectedRoute><SchoolManager /></ProtectedRoute>} />
-          <Route path="/schools/:schoolId" element={<ProtectedRoute><SchoolDetail /></ProtectedRoute>} />
-          <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
-          <Route path="/invites" element={<ProtectedRoute><InviteManager /></ProtectedRoute>} />
-          <Route path="/support" element={<ProtectedRoute><SupportDesk /></ProtectedRoute>} />
-          <Route path="/audit-logs" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+    <ClerkProvider publishableKey={clerkPublishableKey}>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/" element={<ProtectedRoute><DataGrid /></ProtectedRoute>} />
+            <Route path="/users" element={<ProtectedRoute><UserManager /></ProtectedRoute>} />
+            <Route path="/users/:userId" element={<ProtectedRoute><UserDetail /></ProtectedRoute>} />
+            <Route path="/content" element={<ProtectedRoute><ContentManager /></ProtectedRoute>} />
+            <Route path="/schools" element={<ProtectedRoute><SchoolManager /></ProtectedRoute>} />
+            <Route path="/schools/:schoolId" element={<ProtectedRoute><SchoolDetail /></ProtectedRoute>} />
+            <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+            <Route path="/invites" element={<ProtectedRoute><InviteManager /></ProtectedRoute>} />
+            <Route path="/support" element={<ProtectedRoute><SupportDesk /></ProtectedRoute>} />
+            <Route path="/audit-logs" element={<ProtectedRoute><AuditLogs /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ClerkProvider>
   );
 }
