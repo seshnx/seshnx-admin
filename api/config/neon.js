@@ -5,6 +5,9 @@ const neonUrl = process.env.DATABASE_URL;
 
 if (!neonUrl) {
   console.error('❌ Neon: DATABASE_URL is not set in environment variables');
+  console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('DATABASE') || k.includes('POSTGRES') || k.includes('PG')));
+} else {
+  console.log('✅ Neon: DATABASE_URL is configured');
 }
 
 export const neonClient = neonUrl ? neon(neonUrl, { fetch: fetch }) : null;

@@ -71,6 +71,7 @@ export async function verifyAdminAuth(req, res) {
     // Check if user has admin role in Neon database
     let adminUser;
     try {
+      console.log('Querying database for user:', userId);
       adminUser = await queryOne(
         `SELECT
           id,
@@ -85,11 +86,18 @@ export async function verifyAdminAuth(req, res) {
         WHERE id = $1`,
         [userId]
       );
+      console.log('Database query result:', adminUser ? 'User found' : 'User not found');
     } catch (error) {
       console.error('Database error checking admin user:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        code: error.code
+      });
       return res.status(500).json({
         error: 'Internal server error: Database query failed',
-        code: 'DB_ERROR'
+        code: 'DB_ERROR',
+        details: error.message
       });
     }
 
