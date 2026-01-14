@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 
 const AuthContext = createContext();
@@ -15,50 +15,25 @@ export function AuthProvider({ children }) {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
-
-  // Use refs to track mounted state and prevent race conditions
-  const isMounted = useRef(true);
-  const checkInProgress = useRef(false);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
+    // Only check once when Clerk is loaded
+    if (!isLoaded || initialized) {
+      return;
+    }
 
-  useEffect(() => {
     const checkAdminStatus = async () => {
-      // Prevent multiple simultaneous checks
-      if (checkInProgress.current) {
-        return;
-      }
-
-      if (!isLoaded) {
-        if (isMounted.current) {
-          setLoading(true);
-        }
-        return;
-      }
-
       if (!isSignedIn || !userId) {
-        if (isMounted.current) {
-          setCurrentUser(null);
-          setIsAdmin(false);
-          setIsSuperAdmin(false);
-          setUserProfile(null);
-          setToken(null);
-          setLoading(false);
-        }
+        // User not logged in, don't check admin status
+        setLoading(false);
+        setInitialized(true);
         return;
       }
-
-      checkInProgress.current = true;
 
       try {
-        // Get JWT token for API calls
+        // Get JWT token
         const jwtToken = await clerkAuth.getToken();
-        if (!isMounted.current) return;
-
         setToken(jwtToken);
 
         // Fetch admin user info from API
@@ -68,70 +43,40 @@ export function AuthProvider({ children }) {
           }
         });
 
-        if (!isMounted.current) return;
+        if (response.ok) {
+          const data = await response.json();
+          const adminUser = data.user;
 
-        if (!response.ok) {
-          if (response.status === 401 || response.status === 403) {
-            // Not an admin or unauthorized
-            console.warn('User is not an admin or unauthorized');
-            setCurrentUser(null);
-            setIsAdmin(false);
-            setIsSuperAdmin(false);
-            setUserProfile(null);
-            setLoading(false);
-            return;
+          if (adminUser) {
+            setCurrentUser({
+              id: adminUser.id,
+              email: adminUser.email,
+              username: adminUser.username,
+              firstName: adminUser.firstName,
+              lastName: adminUser.lastName,
+            });
+            setIsAdmin(true);
+            setIsSuperAdmin(adminUser.isSuperAdmin);
+            setUserProfile({
+              accountTypes: adminUser.roles,
+              activeRole: adminUser.activeRole,
+              source: 'api'
+            });
           }
-          throw new Error(`Failed to fetch admin info: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const adminUser = data.user;
-
-        if (!adminUser) {
-          console.warn('User not found in database:', userId);
-          if (isMounted.current) {
-            setCurrentUser(null);
-            setIsAdmin(false);
-            setIsSuperAdmin(false);
-            setUserProfile(null);
-            setLoading(false);
-          }
-          return;
-        }
-
-        if (isMounted.current) {
-          setCurrentUser({
-            id: adminUser.id,
-            email: adminUser.email,
-            username: adminUser.username,
-            firstName: adminUser.firstName,
-            lastName: adminUser.lastName,
-          });
-          setIsAdmin(true);
-          setIsSuperAdmin(adminUser.isSuperAdmin);
-          setUserProfile({
-            accountTypes: adminUser.roles,
-            activeRole: adminUser.activeRole,
-            source: 'api'
-          });
-          setLoading(false);
+        } else if (response.status === 401 || response.status === 403) {
+          // Not an admin, that's ok
+          console.log('User is not an admin');
         }
       } catch (error) {
         console.error('Error checking admin status:', error);
-        if (isMounted.current) {
-          setCurrentUser(null);
-          setIsAdmin(false);
-          setIsSuperAdmin(false);
-          setUserProfile(null);
-          setLoading(false);
-        }
       } finally {
-        checkInProgress.current = false;
+        setLoading(false);
+        setInitialized(true);
       }
     };
 
     checkAdminStatus();
-  }, [isLoaded, isSignedIn, userId]); // Removed clerkAuth from dependencies
+  }, [isLoaded, isSignedIn, userId, initialized]);
 
   const logout = async () => {
     try {
@@ -141,6 +86,8 @@ export function AuthProvider({ children }) {
       setIsAdmin(false);
       setIsSuperAdmin(false);
       setUserProfile(null);
+      setInitialized(false);
+      setLoading(false);
     } catch (error) {
       console.error('Error signing out:', error);
     }
