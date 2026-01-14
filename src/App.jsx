@@ -17,7 +17,7 @@ import SchoolDetail from './pages/SchoolDetail';
 import SupportDesk from './pages/SupportDesk';
 import ContentManager from './pages/ContentManager';
 // Get Clerk publishable key from environment variable
-const clerkPublishableKey = import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 const Sidebar = () => {
   const { currentUser, isSuperAdmin, logout } = useAuth();
@@ -94,7 +94,7 @@ export default function App() {
       <div className="min-h-screen bg-admin-dark flex items-center justify-center text-white">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Configuration Error</h1>
-          <p className="text-gray-400">NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is not set. Please check your Vercel environment variables.</p>
+          <p className="text-gray-400">VITE_CLERK_PUBLISHABLE_KEY is not set. Please check your Vercel environment variables.</p>
         </div>
       </div>
     );
