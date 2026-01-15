@@ -13,6 +13,8 @@ if (!clerkSecretKey) {
 /**
  * Verify admin authentication middleware
  * Checks for valid Clerk JWT token and admin role in Neon database
+ *
+ * Returns a Response object on error, or null if authentication succeeds
  */
 export async function verifyAdminAuth(req, res) {
   try {
@@ -20,9 +22,12 @@ export async function verifyAdminAuth(req, res) {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
+      return new Response(JSON.stringify({
         error: 'Unauthorized: No token provided',
         code: 'NO_TOKEN'
+      }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
       });
     }
 
@@ -34,9 +39,12 @@ export async function verifyAdminAuth(req, res) {
       payload = await verifyToken(token, { secretKey: clerkSecretKey });
     } catch (error) {
       console.error('Clerk token verification failed:', error);
-      return res.status(401).json({
+      return new Response(JSON.stringify({
         error: 'Unauthorized: Invalid or expired token',
         code: 'INVALID_TOKEN'
+      }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
       });
     }
 
@@ -44,9 +52,12 @@ export async function verifyAdminAuth(req, res) {
     const userId = payload.sub;
 
     if (!userId) {
-      return res.status(401).json({
+      return new Response(JSON.stringify({
         error: 'Unauthorized: Invalid token payload',
         code: 'INVALID_PAYLOAD'
+      }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
       });
     }
 
@@ -76,26 +87,35 @@ export async function verifyAdminAuth(req, res) {
         stack: error.stack,
         code: error.code
       });
-      return res.status(500).json({
+      return new Response(JSON.stringify({
         error: 'Internal server error: Database query failed',
         code: 'DB_ERROR',
         details: error.message
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
       });
     }
 
     // Check if user exists
     if (!adminUser) {
-      return res.status(403).json({
+      return new Response(JSON.stringify({
         error: 'Forbidden: User not found',
         code: 'USER_NOT_FOUND'
+      }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
       });
     }
 
     // Check if user is banned (soft deleted)
     if (adminUser.deleted_at) {
-      return res.status(403).json({
+      return new Response(JSON.stringify({
         error: 'Forbidden: User account is banned',
         code: 'USER_BANNED'
+      }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
       });
     }
 
@@ -104,9 +124,12 @@ export async function verifyAdminAuth(req, res) {
     const isAdmin = accountTypes.includes('GAdmin') || accountTypes.includes('SuperAdmin');
 
     if (!isAdmin) {
-      return res.status(403).json({
+      return new Response(JSON.stringify({
         error: 'Forbidden: Admin access required',
         code: 'NOT_ADMIN'
+      }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
       });
     }
 
@@ -126,9 +149,12 @@ export async function verifyAdminAuth(req, res) {
     return null; // No error means authentication passed
   } catch (error) {
     console.error('Authentication middleware error:', error);
-    return res.status(500).json({
+    return new Response(JSON.stringify({
       error: 'Internal server error: Authentication failed',
       code: 'AUTH_ERROR'
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
     });
   }
 }
