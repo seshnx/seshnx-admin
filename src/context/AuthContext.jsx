@@ -20,21 +20,22 @@ export function AuthProvider({ children }) {
   const hasChecked = useRef(false);
 
   useEffect(() => {
-    // Prevent multiple checks even if component re-renders
-    if (hasChecked.current) {
-      return;
-    }
-
     const checkAdminStatus = async () => {
-      // Mark as checked immediately to prevent duplicates
-      hasChecked.current = true;
-
       try {
         if (!isSignedIn || !userId) {
-          // User not logged in, don't check admin status
+          // User not logged in, reset and don't check admin status
+          hasChecked.current = false;
           setLoading(false);
           return;
         }
+
+        // Prevent multiple checks for the same user session
+        if (hasChecked.current) {
+          return;
+        }
+
+        // Mark as checked to prevent duplicates
+        hasChecked.current = true;
 
         // Get JWT token
         const jwtToken = await clerkAuth.getToken();
@@ -90,7 +91,7 @@ export function AuthProvider({ children }) {
     if (isLoaded) {
       checkAdminStatus();
     }
-  }, [isLoaded]); // Only depend on isLoaded, not isSignedIn or userId
+  }, [isLoaded, isSignedIn, userId]); // Depend on isLoaded, isSignedIn, and userId
 
   const logout = async () => {
     try {
