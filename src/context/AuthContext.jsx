@@ -37,14 +37,29 @@ export function AuthProvider({ children }) {
         // Mark as checked to prevent duplicates
         hasChecked.current = true;
 
-        // Get JWT token
-        const jwtToken = await clerkAuth.getToken();
+        // Get JWT token with custom template
+        let jwtToken;
+        try {
+          jwtToken = await clerkAuth.getToken({ template: 'Neon' });
+        } catch (error) {
+          console.error('Error getting token with Neon template, trying default:', error);
+          jwtToken = await clerkAuth.getToken();
+        }
+
+        if (!jwtToken) {
+          console.error('Failed to get JWT token from Clerk');
+          setLoading(false);
+          return;
+        }
+
+        console.log('Token retrieved, length:', jwtToken.length);
         setToken(jwtToken);
 
         // Fetch admin user info from API
         const response = await fetch('/api/admin/me', {
           headers: {
-            'Authorization': `Bearer ${jwtToken}`
+            'Authorization': `Bearer ${jwtToken}`,
+            'Content-Type': 'application/json'
           }
         });
 

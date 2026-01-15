@@ -36,9 +36,16 @@ export async function verifyAdminAuth(req, res) {
     // Verify Clerk token
     let payload;
     try {
+      console.log('Attempting to verify token...');
+      console.log('Clerk secret key configured:', !!clerkSecretKey);
+      console.log('Token length:', token.length);
+      console.log('Token prefix:', token.substring(0, 20) + '...');
       payload = await verifyToken(token, { secretKey: clerkSecretKey });
+      console.log('Token verified successfully, payload sub:', payload.sub);
     } catch (error) {
       console.error('Clerk token verification failed:', error);
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
       return new Response(JSON.stringify({
         error: 'Unauthorized: Invalid or expired token',
         code: 'INVALID_TOKEN'
